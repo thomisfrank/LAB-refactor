@@ -1,0 +1,25 @@
+{
+    // Godot Tools (Geequlim) path — use the actual Godot binary for language server
+    "godotTools.editorPath.godot4": "/Applications/Godot.app/Contents/MacOS/Godot",
+    "godotTools.editor.verbose": true,
+
+    // Official/other extensions commonly use these keys; use full binary path where required
+    "godot.editorPath": "/Applications/Godot.app/Contents/MacOS/Godot",
+    "godot_tools.editor_path": "/Applications/Godot.app/Contents/MacOS/Godot",
+
+    // Enable language server where available
+    "godot.useLanguageServer": true,
+    "godot_tools.use_language_server": true,
+
+    // Geequlim Godot Tools language-server keys (both common spellings)
+    "godotTools.useLanguageServer": true,
+    "godotTools.use_language_server": true,
+
+    // Scene file configuration (our Scripts and Scenes are in separate folders)
+    "godotTools.sceneFileConfig": "res://Scenes/Core/main.tscn",
+
+    // Ensure .gd files are recognized in the workspace
+    "files.associations": {
+        "*.gd": "gdscript"
+    }
+}
