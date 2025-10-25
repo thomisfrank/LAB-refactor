@@ -529,6 +529,7 @@ theme_override_fonts/font = ExtResource("4_66vjv")
 theme_override_font_sizes/font_size = 32
 text = "Give up"
 flat = true
+expand_icon = true
 
 [node name="HSeparator" type="HSeparator" parent="EndRoundTray/NavButtons"]
 custom_minimum_size = Vector2(24, 0)
@@ -561,6 +562,7 @@ vertical_alignment = 1
 metadata/_edit_use_anchors_ = true
 
 [node name="EndGameTray" type="TextureRect" parent="."]
+visible = false
 material = SubResource("ShaderMaterial_58efj")
 custom_minimum_size = Vector2(480, 1080)
 layout_mode = 0
@@ -932,6 +934,7 @@ vertical_alignment = 1
 metadata/_edit_use_anchors_ = true
 
 [node name="NewStateTray" type="TextureRect" parent="."]
+visible = false
 material = SubResource("ShaderMaterial_58efj")
 layout_mode = 1
 anchors_preset = 4

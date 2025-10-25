@@ -3,7 +3,7 @@
 	"suit": "PeekHand",
 	"value": "6",
 	"icon_path": "PeekHand.png",
-	"description": "Look at a card in your opponent's hand",
+	"description": "Look at one card in your opponent's hand\nChoose to swap it or keep this card",
 	"color_a": [0.945, 0.769, 0.059, 1.0],
 	"color_b": [1.0, 0.914, 0.569, 1.0],
 	"color_c": [0.576, 0.463, 0.0, 1.0]

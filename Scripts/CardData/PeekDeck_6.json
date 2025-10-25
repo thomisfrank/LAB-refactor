@@ -3,7 +3,7 @@
 	"suit": "PeekDeck",
 	"value": "6",
 	"icon_path": "PeekDeck.png",
-	"description": "Look at the top 2 cards of the deck",
+	"description": "Look at the top card of the deck\nChoose to draw it and discard this card, or keep this card",
 	"color_a": [0.945, 0.769, 0.059, 1.0],
 	"color_b": [1.0, 0.914, 0.569, 1.0],
 	"color_c": [0.576, 0.463, 0.0, 1.0]

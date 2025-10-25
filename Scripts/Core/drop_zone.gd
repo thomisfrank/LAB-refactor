@@ -98,7 +98,7 @@ func contains_global_position(pos: Vector2) -> bool:
 	return false
 
 # Called by cards when dropped in this zone
-func on_card_dropped(card_node: Node, snap: bool = true, _disintegrate: bool = true) -> void:
+func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = true) -> void:
 	var play_area_marker = $PlayAreaCardSlot/PlayAreaCardSlotMarker
 	
 	# Snap position to the play area card slot marker
@@ -174,7 +174,7 @@ func on_card_dropped(card_node: Node, snap: bool = true, _disintegrate: bool = t
 
 func _create_dust_effect(card_node: Node) -> void:
 	# Get card bounds for corner positions
-	var card_size = Vector2(100, 140)  # Standard card size
+	var _card_size = Vector2(100, 140)  # Standard card size
 	
 	# Corner positions relative to card center
 	var corners = [

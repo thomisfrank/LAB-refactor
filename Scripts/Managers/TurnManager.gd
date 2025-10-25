@@ -25,7 +25,7 @@ var opponent_had_turn: bool = false
 var player_actions_remaining: int = 0
 var opponent_actions_remaining: int = 0
 
-@export var show_turn_overlay: bool = false
+@export var show_turn_overlay: bool = true
 # Turn transition scheduling: incrementing id invalidates previous scheduled transitions
 var _turn_transition_id: int = 0
 
@@ -52,15 +52,21 @@ func _execute_scheduled_transition(id: int) -> void:
 	if not ui_manager:
 		ui_manager = get_node_or_null("/root/main/FrontLayerUI/UIPanel")
 
+	# Show turn overlay before switching turns
+	if show_turn_overlay:
+		var upcoming_is_player_turn = not is_player_turn
+		if ui_manager and ui_manager.has_method("show_turn_message"):
+			ui_manager.show_turn_message(upcoming_is_player_turn)
+			# Wait for the overlay animation to fully complete
+			if ui_manager.has_signal("turn_message_finished"):
+				await ui_manager.turn_message_finished
+			else:
+				# Fallback: estimate total animation time
+				await get_tree().create_timer(2.0).timeout
+
 	if not is_player_turn:
 		_handle_opponent_action()
 	else:
-		# Existing logic for player turn
-		if show_turn_overlay:
-			var upcoming_is_player_turn = not is_player_turn
-			if ui_manager and ui_manager.has_method("show_turn_message"):
-				ui_manager.show_turn_message(upcoming_is_player_turn)
-
 		next_turn()
 
 # --- UI Opacity Settings ---
@@ -243,32 +249,14 @@ func next_turn() -> void:
 	_update_action_ui()
 	# If it's the opponent's turn, notify AIManager (if present)
 	if not is_player_turn:
-		# Show overlay and wait for it to finish before proceeding with AI action
 		var ai_mgr = null
 		if game_manager and game_manager.has_method("get_manager"):
 			ai_mgr = game_manager.get_manager("AIManager")
 		if not ai_mgr:
 			ai_mgr = get_node_or_null("/root/main/Managers/AIManager")
-		# If we have a UIManager overlay, show it and wait for completion before acting
-		if ui_manager and ui_manager.has_method("show_turn_message"):
-			ui_manager.show_turn_message(false)
-			# Wait for UIManager signal if available, otherwise fallback to the configured delay
-			if ui_manager.has_signal("turn_message_finished"):
-				# Connect a one-shot handler that continues the flow when the overlay finishes.
-				_deferred_ai_mgr = ai_mgr
-				# Use Callable-based connect for compatibility with project patterns
-				if not ui_manager.is_connected("turn_message_finished", Callable(self, "_on_turn_message_finished")):
-					ui_manager.connect("turn_message_finished", Callable(self, "_on_turn_message_finished"))
-			else:
-				# fallback: schedule delayed continuation after end_of_actions_delay
-				_deferred_ai_mgr = ai_mgr
-				_call_delayed_post_overlay(end_of_actions_delay)
-		# If no UI overlay, proceed immediately (but still call AI)
-		if not ui_manager or not ui_manager.has_signal("turn_message_finished"):
-			# If we scheduled a delayed continuation above, it will call AI; otherwise call now
-			if not _deferred_ai_mgr:
-				if ai_mgr and ai_mgr.has_method("on_ai_turn"):
-					ai_mgr.on_ai_turn()
+		
+		if ai_mgr and ai_mgr.has_method("on_ai_turn"):
+			ai_mgr.on_ai_turn()
 	# TODO: Add turn-based logic here (card play restrictions, etc.)
 
 ## Update UI opacity based on whose turn it is

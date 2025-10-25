@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3 uid="uid://k78r5mnfr86l"]
+[gd_scene load_steps=20 format=3 uid="uid://k78r5mnfr86l"]
 
 [ext_resource type="Script" uid="uid://dt01fmi0ud6n0" path="res://Scripts/Core/main.gd" id="1_21xkr"]
 [ext_resource type="Script" uid="uid://diupc0dagbyfv" path="res://Scripts/Managers/card_manager.gd" id="1_bo1nx"]
@@ -15,7 +15,25 @@
 [ext_resource type="PackedScene" uid="uid://djx8niab6ivv2" path="res://Scenes/Core/discard_pile.tscn" id="7_hptm8"]
 [ext_resource type="PackedScene" uid="uid://gu4ayccbc2mf" path="res://Scenes/Core/drop_zone.tscn" id="7_ynf5e"]
 [ext_resource type="PackedScene" uid="uid://bd7r3kr8kyerm" path="res://Scenes/UI/ui_panel.tscn" id="10_d1ilt"]
+[ext_resource type="Shader" uid="uid://bj1asd5qhlhol" path="res://Scripts/Shader/smallDisplay.gdshader" id="14_h1bgf"]
 [ext_resource type="PackedScene" uid="uid://buq3dldmk3rjb" path="res://Scenes/UI/GameStateTray.tscn" id="14_k12tt"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_b3802"]
+shader = ExtResource("14_h1bgf")
+shader_parameter/box_color = Color(0.08235294, 0.17254902, 0.39215687, 0.79607844)
+shader_parameter/line_color = Color(0.35, 0.35, 0.38, 1)
+shader_parameter/corner_radius = 0.1600000076
+shader_parameter/line_thickness = 0.0010000000475
+shader_parameter/line_position1 = 0.0
+shader_parameter/line_position2 = 0.0
+shader_parameter/gleam_color = Color(0.50129026, 0.50129026, 0.50129026, 0.101960786)
+shader_parameter/gleam_speed = 0.0
+shader_parameter/gleam_width = 0.93600004446
+shader_parameter/curvature_amount = 0.0
+shader_parameter/vignette_intensity = 0.48800002318
+shader_parameter/vignette_softness = 1.78300008143262
+shader_parameter/dirt_intensity = 0.09600000456
+shader_parameter/dirt_scale = 81.2930038139175
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_jjvhh"]
 shader = ExtResource("3_8gbba")
@@ -58,7 +76,6 @@ player_hand_offset_x = -150.0
 
 [node name="TurnManager" type="Node" parent="Managers"]
 script = ExtResource("1_tm")
-show_turn_overlay = true
 inactive_player_opacity = 0.2
 action_pop_padding = 12.0
 action_pop_grow_time = 0.02
@@ -74,6 +91,8 @@ pass_particle_color = Color(0.15294118, 0.68235296, 0.3764706, 1)
 
 [node name="UIManager" type="Node" parent="Managers"]
 script = ExtResource("1_uim")
+typing_speed = 0.08
+new_state_beat_duration = 1.0
 
 [node name="AIManager" type="Node" parent="Managers"]
 script = ExtResource("5_h1bgf")
@@ -101,6 +120,7 @@ offset_right = 1920.0
 offset_bottom = 1084.0
 mouse_filter = 2
 script = ExtResource("2_6bp64")
+max_offset = Vector2(15, 20)
 
 [node name="DropZone" parent="Parallax" instance=ExtResource("7_ynf5e")]
 position = Vector2(1080, 500.00003)
@@ -116,8 +136,10 @@ shader_tween_trans = 9
 shader_edge_width = 0.106
 shader_edge_color = Color(0.15294118, 0.68235296, 0.3764706, 1)
 rotation_correction_degrees = 1.107
-dust_particle_size = 10.0
+dust_particle_count = 16
+dust_particle_size = 15.0
 dust_speed = 100.0
+dust_lifetime = 1.0
 
 [node name="CardManager" type="Node2D" parent="Parallax"]
 position = Vector2(-543, -219)
@@ -179,6 +201,14 @@ wiggle_duration = 1.0
 [node name="FrontLayerUI" type="CanvasLayer" parent="."]
 follow_viewport_enabled = true
 
+[node name="Overlay" type="ColorRect" parent="FrontLayerUI"]
+material = SubResource("ShaderMaterial_b3802")
+custom_minimum_size = Vector2(1920, 1080)
+offset_top = -32.0
+offset_right = 1960.0
+offset_bottom = 1111.0
+color = Color(0.14117648, 0.2, 0.25490198, 0.7411765)
+
 [node name="GameStateTray" parent="FrontLayerUI" instance=ExtResource("14_k12tt")]
 offset_left = 479.0
 offset_top = 0.0
@@ -192,7 +222,7 @@ offset_right = 1.9999695
 offset_bottom = 0.0
 metadata/_edit_lock_ = true
 
-[node name="ColorRect" type="ColorRect" parent="FrontLayerUI"]
+[node name="CRT" type="ColorRect" parent="FrontLayerUI"]
 material = SubResource("ShaderMaterial_jjvhh")
 anchors_preset = 15
 anchor_right = 1.0

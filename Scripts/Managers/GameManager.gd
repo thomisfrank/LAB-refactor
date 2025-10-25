@@ -148,6 +148,10 @@ func _on_draw_started() -> void:
 		ui_manager.set_active_player(true)
 
 func _handle_round_start() -> void:
+	# Increment round number BEFORE UI reads it
+	if round_manager:
+		round_manager.current_round_number += 1
+	
 	# The RoundManager handles card drawing and deciding the first player.
 	if round_manager:
 		var starting_player: int = _determine_starting_player()

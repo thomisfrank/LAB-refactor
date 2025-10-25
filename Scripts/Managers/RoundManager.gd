@@ -141,10 +141,10 @@ func start_new_round(starter: int) -> void:
 	if not card_manager or not ui_manager:
 		push_error("RoundManager cannot start round: Manager references are null.")
 		# manager state (suppressed logs)
-		# We can transition to GAME_OVER or stop if we can't run.
+		# We can't transition to GAME_OVER or stop if we can't run.
 		return
 
-	current_round_number += 1
+	# Round number is now incremented in GameManager before this is called
 	
 	# 1. Determine and store the starting player for this round
 	_set_starter_for_next_round(starter)
