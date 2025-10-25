@@ -1,0 +1,151 @@
+```gdscript
+extends Node
+
+signal start_sequence_finished
+signal end_round_closed
+signal turn_message_finished
+
+@export_group("Loading")
+@export var loading_opacity: float = 0.9
+
+@export_group("Action Panels")
+# Alpha used for the "off" state (panels look dim/transparent at game start)
+@export var panels_off_alpha: float = 0.03
+# Alpha used for the "on" state (panels become fully visible when cards draw)
+@export var panels_on_alpha: float = 1.0
+
+# --- References (Set by _ready from the scene tree) ---
+
+# The main UIPanel (for scores, round #, action buttons)
+var ui_panel: Node 
+
+# The consolidated GameStateTray (handles all overlays)
+var game_state_tray: Node      # The root "GameStateTray" node
+var state_message_tray: Node   # The "NewStateTray" child for turn/round messages
+var end_round_tray: Node       # The "EndRoundTray" child
+var end_game_tray: Node        # The "EndGameTray" child
+# ---
+
+# UI Panel child nodes (for scores, round display, etc.)
+var round_label: Node
+var player_score_label: Node
+var opponent_score_label: Node
+var player_actions_panel: Node
+var opponent_actions_panel: Node
+var player_score_box: Node
+var opponent_score_box: Node
+var player_actions_left_label: Node
+var opponent_actions_left_label: Node
+var loading_rect: Node
+
+func _ready() -> void:
+	pass
+	# UIManager ready (debug suppressed)
+	
+	# --- NEW: Resolve UI references based on the new GameStateTray structure ---
+	var main_node = get_node_or_null("/root/main")
+	if main_node:
+		var front_layer = main_node.get_node_or_null("FrontLayerUI")
+		if front_layer:
+			# 1. Find the main UIPanel (for scores, round display, etc.)
+			# This script might be ON the UIPanel, or separate.
+			if name == "UIPanel":
+				ui_panel = self
+			else:
+				ui_panel = front_layer.get_node_or_null("UIPanel") #
+			
+			# 2. Find the single, consolidated GameStateTray
+			game_state_tray = front_layer.get_node_or_null("GameStateTray")
+			
+			if game_state_tray:
+				# 3. Get references to the child trays within GameStateTray
+				state_message_tray = game_state_tray.get_node_or_null("NewStateTray") #
+				end_round_tray = game_state_tray.get_node_or_null("EndRoundTray")     #
+				end_game_tray = game_state_tray.get_node_or_null("EndGameTray")      #
+				
+				# 4. Ensure the trays all start invisible
+				game_state_tray.visible = false
+				if state_message_tray:
+					state_message_tray.visible = false
+				if end_round_tray:
+					end_round_tray.visible = false
+				if end_game_tray:
+					end_game_tray.visible = false
+			else:
+				push_error("UIManager: Could not find 'GameStateTray' in FrontLayerUI!")
+		else:
+			push_error("UIManager: Could not find 'FrontLayerUI' in 'main'!")
+	else:
+		 push_error("UIManager: Could not find '/root/main' node!")
+
+	# --- End new UI resolving logic ---
+
+	if not state_message_tray or not end_round_tray or not end_game_tray or not ui_panel:
+		push_error("UIManager: Could not find one or more UI elements!")
+		if not state_message_tray:
+			print("UIManager: MISSING: state_message_tray (NewStateTray)")
+		if not end_round_tray:
+			print("UIManager: MISSING: end_round_tray (EndRoundTray)")
+		if not end_game_tray:
+			print("UIManager: MISSING: end_game_tray (EndGameTray)")
+		if not ui_panel:
+			print("UIManager: MISSING: ui_panel (UIPanel)")
+	else:
+		pass
+		# UI elements ready (suppressed)
+
+	# If GameManager is autoloaded or present in the scene, register this UIManager
+	var gm_paths = ["/root/GameManager", "/root/main/Managers/GameManager", "/root/main/GameManager"]
+	var gm: Node = null
+	for p in gm_paths:
+		gm = get_node_or_null(p)
+		if gm:
+			break
+	if gm and gm.has_method("register_manager"):
+		gm.register_manager("UIManager", self)
+	else:
+		pass
+		# GameManager registration skipped (suppressed)
+
+	# Get child nodes from UIPanel for scores, round display, etc.
+	if ui_panel:
+		var base = ui_panel.get_node_or_null("PanelBG/VBoxContainer")
+		if base:
+			round_label = base.get_node_or_null("RoundTitle/Round#")
+			# ... (rest of the UIPanel child lookups remain the same) ...
+			player_score_box = base.get_node_or_null("TurnEconomy/PlayerUI/Scorebox")
+			opponent_score_box = base.get_node_or_null("TurnEconomy/OpponentUI/Scorebox")
+			player_actions_left_label = base.get_node_or_null("TurnEconomy/PlayerUI/ActionDisplay/ActionsLeftLabel") #
+			opponent_actions_left_label = base.get_node_or_null("TurnEconomy/OpponentUI/ActionDisplay/ActionsLeftLabel") #
+			player_actions_panel = base.get_node_or_null("TurnEconomy/PlayerUI")
+			opponent_actions_panel = base.get_node_or_null("TurnEconomy/OpponentUI")
+
+			if player_actions_panel:
+				player_actions_panel.modulate.a = panels_off_alpha
+				if opponent_actions_panel:
+					opponent_actions_panel.modulate.a = panels_off_alpha
+			
+				var pass_button = base.get_node_or_null("TurnEconomy/PlayerUI/PassButton")
+				if pass_button:
+					if not pass_button.is_connected("pressed", Callable(self, "_on_player_pass_pressed")):
+						pass_button.connect("pressed", Callable(self, "_on_player_pass_pressed"))
+					if not pass_button.is_connected("mouse_entered", Callable(self, "_on_pass_button_hover")):
+						pass_button.connect("mouse_entered", Callable(self, "_on_pass_button_hover"))
+					if not pass_button.is_connected("mouse_exited", Callable(self, "_on_pass_button_exit")):
+						pass_button.connect("mouse_exited", Callable(self, "_on_pass_button_exit"))
+				self.set("_player_pass_button", pass_button)
+
+				loading_rect = ui_panel.get_node_or_null("Loading") #
+				if loading_rect:
+					loading_rect.visible = false
+					loading_rect.modulate.a = loading_opacity
+
+			player_score_label = player_score_box
+			opponent_score_label = opponent_score_box
+
+		# Disable UI panel inputs initially
+		if ui_panel:
+			ui_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+```

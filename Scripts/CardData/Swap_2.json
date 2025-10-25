@@ -1,0 +1,10 @@
+{
+	"name": "Swap_2",
+	"suit": "Swap",
+	"value": "2",
+	"icon_path": "Swap.png",
+	"description": "Swap this card with one from your opponent's hand",
+	"color_a": [0.153, 0.682, 0.376, 1.0],
+	"color_b": [0.506, 0.878, 0.576, 1.0],
+	"color_c": [0.063, 0.322, 0.173, 1.0]
+}

@@ -1,0 +1,999 @@
+[gd_scene load_steps=30 format=3 uid="uid://buq3dldmk3rjb"]
+
+[ext_resource type="Shader" uid="uid://c82r54bghps0l" path="res://Scripts/Shader/TextJitter.gdshader" id="1_g3xw2"]
+[ext_resource type="FontFile" uid="uid://ckij0le131vxg" path="res://Assets/fonts/OpenSansPXBold.ttf" id="4_66vjv"]
+[ext_resource type="Shader" uid="uid://bj1asd5qhlhol" path="res://Scripts/Shader/smallDisplay.gdshader" id="5_pjqpi"]
+[ext_resource type="FontFile" uid="uid://t2x61pg6enw4" path="res://Assets/fonts/Seven Segment.ttf" id="6_pv7qm"]
+[ext_resource type="Shader" uid="uid://b3xlk1vkq2k5b" path="res://Scripts/Shader/actionIcon.gdshader" id="7_4gm2h"]
+[ext_resource type="Texture2D" uid="uid://r4mhdhnpayc0" path="res://Assets/UI/Button.png" id="8_b8dx4"]
+[ext_resource type="Texture2D" uid="uid://bn3yv5sw5wafi" path="res://Assets/UI/ButtonPressed.png" id="9_pyq02"]
+[ext_resource type="Texture2D" uid="uid://c2slcp3v2jn8k" path="res://Assets/UI/ButtonHover.png" id="10_nbo1m"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_jxrjt"]
+shader = ExtResource("1_g3xw2")
+shader_parameter/jitter_rate = 6.0000002375
+shader_parameter/jitter_amount = 0.002000000095
+
+[sub_resource type="Shader" id="Shader_ffajl"]
+code = "// Shader for a chaotic, swirling liquid smoke effect.
+shader_type canvas_item;
+
+// ## Shader Parameters ##
+// You can change these values in the Godot Inspector to customize the effect.
+uniform vec4 color1 : source_color = vec4(0.05, 0.05, 0.15, 1.0); // Dark metallic blue
+uniform vec4 color2 : source_color = vec4(0.6, 0.7, 0.8, 1.0);   // Light steel blue
+uniform float speed : hint_range(0.0, 0.5) = 0.08;              // How fast the smoke swirls
+uniform float zoom : hint_range(1.0, 10.0) = 4.0;                // The scale of the smoke pattern
+uniform float distortion : hint_range(0.0, 2.0) = 0.5;           // How intense the swirling motion is
+uniform int octaves : hint_range(1, 8) = 5;                      // How many layers of noise to add for detail
+
+// 2D Random function
+float random(vec2 st) {
+    return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+}
+
+// 2D Simplex Noise function
+float noise(vec2 st) {
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(random(i + vec2(0.0, 0.0)), random(i + vec2(1.0, 0.0)), u.x),
+               mix(random(i + vec2(0.0, 1.0)), random(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+// Fractal Brownian Motion (FBM) - layers multiple noise patterns for detail.
+float fbm(vec2 st) {
+    float value = 0.0;
+    float amplitude = 0.5;
+    for (int i = 0; i < octaves; i++) {
+        value += amplitude * noise(st);
+        st *= 2.0;
+        amplitude *= 0.5;
+    }
+    return value;
+}
+
+// Main function that runs for every pixel.
+void fragment() {
+    // Get the pixel's coordinate, scaled by the zoom factor.
+    vec2 uv = UV * zoom;
+
+    // --- Chaotic Swirl Logic ---
+    // Instead of moving the UVs in one direction, we will distort them
+    // using another animated noise pattern. This creates a turbulent, swirling motion.
+    
+    // 1. Create two separate time-shifted coordinates for the distortion noise.
+    vec2 motion_uv1 = uv + vec2(TIME * speed, TIME * speed);
+    vec2 motion_uv2 = uv + vec2(TIME * -speed, TIME * -speed + 15.0); // Offset to de-correlate
+    
+    // 2. Calculate two noise values to create a distortion vector.
+    float motion_x = fbm(motion_uv1);
+    float motion_y = fbm(motion_uv2);
+
+    // 3. Apply the distortion to the original UV coordinates.
+    // The 'distortion' parameter controls the strength of the effect.
+    vec2 distorted_uv = uv + vec2(motion_x, motion_y) * distortion;
+
+    // 4. Calculate the final smoke pattern using the distorted coordinates.
+    float noise_value = fbm(distorted_uv);
+    
+    // Mix the two colors based on the final noise value to create the gradient.
+    vec4 final_color = mix(color1, color2, noise_value);
+
+    // Set the pixel's color.
+    COLOR = final_color;
+}"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_58efj"]
+shader = SubResource("Shader_ffajl")
+shader_parameter/color1 = Color(0.08578003, 0.102740996, 0.115755565, 1)
+shader_parameter/color2 = Color(0.22745098, 0.3137255, 0.4, 1)
+shader_parameter/speed = 0.4910000233225
+shader_parameter/zoom = 10.0
+shader_parameter/distortion = 2.0
+shader_parameter/octaves = 2
+
+[sub_resource type="Gradient" id="Gradient_40kas"]
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_qaq6h"]
+gradient = SubResource("Gradient_40kas")
+
+[sub_resource type="LabelSettings" id="LabelSettings_66vjv"]
+font = ExtResource("4_66vjv")
+font_size = 48
+font_color = Color(0.9254902, 0.9411765, 0.94509804, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_bbg02"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_bdxum"]
+shader = ExtResource("5_pjqpi")
+shader_parameter/box_color = Color(0.2, 0.18, 0.22, 1)
+shader_parameter/line_color = Color(0.35, 0.35, 0.38, 1)
+shader_parameter/corner_radius = 0.26000001235
+shader_parameter/line_thickness = 0.0050000002375
+shader_parameter/line_position1 = 0.33
+shader_parameter/line_position2 = 0.67
+shader_parameter/gleam_color = Color(1, 1, 1, 0.1)
+shader_parameter/gleam_speed = 0.15
+shader_parameter/gleam_width = 0.290000013775
+shader_parameter/curvature_amount = 0.3070000145825
+shader_parameter/vignette_intensity = 0.55200002622
+shader_parameter/vignette_softness = 1.4010000632876198
+shader_parameter/dirt_intensity = 0.08400000399
+shader_parameter/dirt_scale = 56.8270026517825
+
+[sub_resource type="LabelSettings" id="LabelSettings_qaq6h"]
+font = ExtResource("6_pv7qm")
+font_size = 64
+font_color = Color(0.94509804, 0.76862746, 0.05882353, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_3jtyh"]
+shader = ExtResource("7_4gm2h")
+shader_parameter/border_color = Color(0.9254902, 0.9411765, 0.94509804, 1)
+shader_parameter/fill_color = Color(0.15294118, 0.68235296, 0.3764706, 0)
+shader_parameter/corner_radius = 0.10000000475
+shader_parameter/border_thickness = 0.0970000046075
+shader_parameter/fill_alpha = 1.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_felqg"]
+shader = ExtResource("7_4gm2h")
+shader_parameter/border_color = Color(0.9254902, 0.9411765, 0.94509804, 1)
+shader_parameter/fill_color = Color(0.15294118, 0.68235296, 0.3764706, 0)
+shader_parameter/corner_radius = 0.10000000475
+shader_parameter/border_thickness = 0.0970000046075
+shader_parameter/fill_alpha = 1.0
+
+[sub_resource type="LabelSettings" id="LabelSettings_pjqpi"]
+font = ExtResource("4_66vjv")
+font_size = 48
+font_color = Color(0.9254902, 0.9411765, 0.94509804, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_k6kgl"]
+shader = ExtResource("5_pjqpi")
+shader_parameter/box_color = Color(0.12156863, 0.101960786, 0.105882354, 1)
+shader_parameter/line_color = Color(0.35, 0.35, 0.38, 1)
+shader_parameter/corner_radius = 0.5
+shader_parameter/line_thickness = 0.003
+shader_parameter/line_position1 = 0.0
+shader_parameter/line_position2 = 0.0
+shader_parameter/gleam_color = Color(1, 1, 1, 0.1)
+shader_parameter/gleam_speed = 0.162000007695
+shader_parameter/gleam_width = 0.394000018715
+shader_parameter/curvature_amount = 0.1
+shader_parameter/vignette_intensity = 0.5
+shader_parameter/vignette_softness = 0.8
+shader_parameter/dirt_intensity = 0.0400000019
+shader_parameter/dirt_scale = 22.1210010032475
+
+[sub_resource type="LabelSettings" id="LabelSettings_pv7qm"]
+font = ExtResource("6_pv7qm")
+font_size = 24
+font_color = Color(0.94509804, 0.76862746, 0.05882353, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ot1vi"]
+shader = ExtResource("1_g3xw2")
+shader_parameter/jitter_rate = 8.0
+shader_parameter/jitter_amount = 0.003
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_g3xw2"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_5iwwa"]
+font = ExtResource("4_66vjv")
+font_size = 32
+font_color = Color(0.17254902, 0.24313726, 0.3137255, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_ffajl"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_58efj"]
+font = ExtResource("6_pv7qm")
+font_size = 24
+font_color = Color(0.94509804, 0.76862746, 0.05882353, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_66vjv"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_bbg02"]
+font = ExtResource("6_pv7qm")
+font_size = 24
+font_color = Color(0.94509804, 0.76862746, 0.05882353, 1)
+
+[node name="GameStateTray" type="Control"]
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 3
+anchor_right = 0.25885418
+anchor_bottom = 1.0
+offset_top = -2.0
+offset_right = -3.0517578e-05
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+metadata/_edit_vertical_guides_ = [520.0, 1151.0, 850.0]
+
+[node name="EndRoundTray" type="TextureRect" parent="."]
+material = SubResource("ShaderMaterial_58efj")
+custom_minimum_size = Vector2(480, 1080)
+layout_mode = 0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = 753.0
+offset_bottom = 1082.0
+texture = SubResource("GradientTexture2D_qaq6h")
+
+[node name="PlayerUI" type="VBoxContainer" parent="EndRoundTray"]
+layout_mode = 0
+offset_left = 75.0
+offset_top = 82.0
+offset_right = 291.0
+offset_bottom = 533.0
+scale = Vector2(1.3199975, 1.3199975)
+alignment = 1
+
+[node name="PlayerLabel" type="Label" parent="EndRoundTray/PlayerUI"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 2
+size_flags_horizontal = 4
+text = "YOU"
+label_settings = SubResource("LabelSettings_66vjv")
+
+[node name="VSeparator2" type="VSeparator" parent="EndRoundTray/PlayerUI"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_bbg02")
+
+[node name="Scorebox" type="ColorRect" parent="EndRoundTray/PlayerUI"]
+material = SubResource("ShaderMaterial_bdxum")
+custom_minimum_size = Vector2(216, 100)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="#__" type="Label" parent="EndRoundTray/PlayerUI/Scorebox"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.01
+anchor_right = 0.32407406
+anchor_bottom = 0.99
+offset_top = -2.0
+offset_bottom = -2.0
+text = "0"
+label_settings = SubResource("LabelSettings_qaq6h")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="_#_" type="Label" parent="EndRoundTray/PlayerUI/Scorebox"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.33333334
+anchor_top = 0.01
+anchor_right = 0.6666667
+anchor_bottom = 0.99
+offset_top = -2.0
+offset_bottom = -2.0
+text = "0"
+label_settings = SubResource("LabelSettings_qaq6h")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="__#" type="Label" parent="EndRoundTray/PlayerUI/Scorebox"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.6712963
+anchor_top = 0.01
+anchor_right = 1.0046296
+anchor_bottom = 0.99
+offset_top = -2.0
+offset_bottom = -2.0
+text = "0"
+label_settings = SubResource("LabelSettings_qaq6h")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="VSeparator3" type="VSeparator" parent="EndRoundTray/PlayerUI"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_bbg02")
+
+[node name="PlayerEndRoundHand" type="VBoxContainer" parent="EndRoundTray/PlayerUI"]
+layout_mode = 2
+
+[node name="PlayerSlots1" type="HBoxContainer" parent="EndRoundTray/PlayerUI/PlayerEndRoundHand"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="PlayerHandSlot0" type="ColorRect" parent="EndRoundTray/PlayerUI/PlayerEndRoundHand/PlayerSlots1"]
+material = SubResource("ShaderMaterial_3jtyh")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="PlayerHandSlotMarker0" type="Marker2D" parent="EndRoundTray/PlayerUI/PlayerEndRoundHand/PlayerSlots1/PlayerHandSlot0"]
+position = Vector2(31.000137, 42.909576)
+
+[node name="PlayerHandSlot1" type="ColorRect" parent="EndRoundTray/PlayerUI/PlayerEndRoundHand/PlayerSlots1"]
+material = SubResource("ShaderMaterial_felqg")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="PlayerHandSlotMarker1" type="Marker2D" parent="EndRoundTray/PlayerUI/PlayerEndRoundHand/PlayerSlots1/PlayerHandSlot1"]
+position = Vector2(32.4245, 42.909576)
+
+[node name="PlayerSlots2" type="HBoxContainer" parent="EndRoundTray/PlayerUI/PlayerEndRoundHand"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="PlayerHandSlot2" type="ColorRect" parent="EndRoundTray/PlayerUI/PlayerEndRoundHand/PlayerSlots2"]
+material = SubResource("ShaderMaterial_felqg")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="PlayerHandSlotMarker2" type="Marker2D" parent="EndRoundTray/PlayerUI/PlayerEndRoundHand/PlayerSlots2/PlayerHandSlot2"]
+position = Vector2(30.242546, 42.81881)
+
+[node name="PlayerHandSlot3" type="ColorRect" parent="EndRoundTray/PlayerUI/PlayerEndRoundHand/PlayerSlots2"]
+material = SubResource("ShaderMaterial_felqg")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="PlayerHandSlotMarker3" type="Marker2D" parent="EndRoundTray/PlayerUI/PlayerEndRoundHand/PlayerSlots2/PlayerHandSlot3"]
+position = Vector2(30.909355, 42.909576)
+
+[node name="VSeparator5" type="VSeparator" parent="EndRoundTray/PlayerUI"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_bbg02")
+
+[node name="OpponentUI" type="VBoxContainer" parent="EndRoundTray"]
+layout_mode = 0
+offset_left = 385.0
+offset_top = 79.0
+offset_right = 601.0
+offset_bottom = 530.0
+scale = Vector2(1.32, 1.32)
+alignment = 1
+
+[node name="OpponentLabel" type="Label" parent="EndRoundTray/OpponentUI"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 2
+size_flags_horizontal = 4
+text = "OPPONENT"
+label_settings = SubResource("LabelSettings_pjqpi")
+
+[node name="VSeparator2" type="VSeparator" parent="EndRoundTray/OpponentUI"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_bbg02")
+
+[node name="Scorebox" type="ColorRect" parent="EndRoundTray/OpponentUI"]
+material = SubResource("ShaderMaterial_bdxum")
+custom_minimum_size = Vector2(216, 100)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="#__" type="Label" parent="EndRoundTray/OpponentUI/Scorebox"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.01
+anchor_right = 0.32407406
+anchor_bottom = 0.99
+offset_top = -2.0
+offset_bottom = -2.0
+text = "0"
+label_settings = SubResource("LabelSettings_qaq6h")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="_#_" type="Label" parent="EndRoundTray/OpponentUI/Scorebox"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.33333334
+anchor_top = 0.01
+anchor_right = 0.6666667
+anchor_bottom = 0.99
+offset_top = -2.0
+offset_bottom = -2.0
+text = "0"
+label_settings = SubResource("LabelSettings_qaq6h")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="__#" type="Label" parent="EndRoundTray/OpponentUI/Scorebox"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.6712963
+anchor_top = 0.01
+anchor_right = 1.0046296
+anchor_bottom = 0.99
+offset_top = -2.0
+offset_bottom = -2.0
+text = "0"
+label_settings = SubResource("LabelSettings_qaq6h")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="VSeparator3" type="VSeparator" parent="EndRoundTray/OpponentUI"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_bbg02")
+
+[node name="PlayerEndRoundHand" type="VBoxContainer" parent="EndRoundTray/OpponentUI"]
+layout_mode = 2
+
+[node name="OpponentSlots1" type="HBoxContainer" parent="EndRoundTray/OpponentUI/PlayerEndRoundHand"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="OpponentHandSlot0" type="ColorRect" parent="EndRoundTray/OpponentUI/PlayerEndRoundHand/OpponentSlots1"]
+material = SubResource("ShaderMaterial_3jtyh")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="HandSlotMarker0" type="Marker2D" parent="EndRoundTray/OpponentUI/PlayerEndRoundHand/OpponentSlots1/OpponentHandSlot0"]
+position = Vector2(31.000137, 42.909576)
+
+[node name="OpponentHandSlot1" type="ColorRect" parent="EndRoundTray/OpponentUI/PlayerEndRoundHand/OpponentSlots1"]
+material = SubResource("ShaderMaterial_felqg")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="OpponentHandSlotMarker1" type="Marker2D" parent="EndRoundTray/OpponentUI/PlayerEndRoundHand/OpponentSlots1/OpponentHandSlot1"]
+position = Vector2(32.4245, 42.909576)
+
+[node name="OpponentSlots2" type="HBoxContainer" parent="EndRoundTray/OpponentUI/PlayerEndRoundHand"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="OpponentHandSlot2" type="ColorRect" parent="EndRoundTray/OpponentUI/PlayerEndRoundHand/OpponentSlots2"]
+material = SubResource("ShaderMaterial_felqg")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="OpponentHandSlotMarker2" type="Marker2D" parent="EndRoundTray/OpponentUI/PlayerEndRoundHand/OpponentSlots2/OpponentHandSlot2"]
+position = Vector2(30.242546, 42.81881)
+
+[node name="OpponentHandSlot3" type="ColorRect" parent="EndRoundTray/OpponentUI/PlayerEndRoundHand/OpponentSlots2"]
+material = SubResource("ShaderMaterial_felqg")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="OpponentHandSlotMarker3" type="Marker2D" parent="EndRoundTray/OpponentUI/PlayerEndRoundHand/OpponentSlots2/OpponentHandSlot3"]
+position = Vector2(30.909355, 42.909576)
+
+[node name="VSeparator5" type="VSeparator" parent="EndRoundTray/OpponentUI"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_bbg02")
+
+[node name="RoundResultsScreen" type="ColorRect" parent="EndRoundTray"]
+material = SubResource("ShaderMaterial_k6kgl")
+custom_minimum_size = Vector2(216, 56)
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.10252996
+anchor_top = 0.63796294
+anchor_right = 0.8961385
+anchor_bottom = 0.74814814
+metadata/_edit_use_anchors_ = true
+
+[node name="Results" type="Label" parent="EndRoundTray/RoundResultsScreen"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.09259259
+anchor_top = 0.26785713
+anchor_right = 0.9110738
+anchor_bottom = 0.73214287
+text = "it's a tie"
+label_settings = SubResource("LabelSettings_pv7qm")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="NavButtons" type="HBoxContainer" parent="EndRoundTray"]
+layout_mode = 0
+offset_left = 331.0
+offset_top = 969.0
+offset_right = 671.0
+offset_bottom = 1023.0
+
+[node name="GiveUpButton" type="Button" parent="EndRoundTray/NavButtons"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_ot1vi")
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9254902, 0.9411765, 0.94509804, 1)
+theme_override_colors/font_hover_color = Color(0.15294118, 0.68235296, 0.3764706, 1)
+theme_override_colors/font_hover_pressed_color = Color(0.94509804, 0.76862746, 0.05882353, 1)
+theme_override_fonts/font = ExtResource("4_66vjv")
+theme_override_font_sizes/font_size = 32
+text = "Give up"
+flat = true
+
+[node name="HSeparator" type="HSeparator" parent="EndRoundTray/NavButtons"]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_g3xw2")
+
+[node name="OkayButton" type="TextureButton" parent="EndRoundTray/NavButtons"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture_normal = ExtResource("8_b8dx4")
+texture_pressed = ExtResource("9_pyq02")
+texture_hover = ExtResource("10_nbo1m")
+
+[node name="Label" type="Label" parent="EndRoundTray/NavButtons/OkayButton"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.285
+anchor_top = 0.09259259
+anchor_right = 0.66
+anchor_bottom = 0.8148148
+offset_top = -2.0
+offset_bottom = -2.0
+text = "Okay"
+label_settings = SubResource("LabelSettings_5iwwa")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="EndGameTray" type="TextureRect" parent="."]
+material = SubResource("ShaderMaterial_58efj")
+custom_minimum_size = Vector2(480, 1080)
+layout_mode = 0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = 753.0
+offset_bottom = 1082.0
+texture = SubResource("GradientTexture2D_qaq6h")
+
+[node name="GameResultsScreen" type="ColorRect" parent="EndGameTray"]
+material = SubResource("ShaderMaterial_k6kgl")
+custom_minimum_size = Vector2(216, 56)
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.10252996
+anchor_top = 0.033333335
+anchor_right = 0.8961385
+anchor_bottom = 0.2
+metadata/_edit_use_anchors_ = true
+
+[node name="Results" type="Label" parent="EndGameTray/GameResultsScreen"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+custom_minimum_size = Vector2(488, 32)
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.092281885
+anchor_top = 0.07203391
+anchor_right = 0.91076314
+anchor_bottom = 0.19215687
+text = "it's a tie"
+label_settings = SubResource("LabelSettings_pv7qm")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="Statistics" type="HBoxContainer" parent="EndGameTray/GameResultsScreen"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.25167784
+anchor_top = 0.2888889
+anchor_right = 0.75
+anchor_bottom = 0.9388889
+grow_horizontal = 2
+grow_vertical = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="StatsLabel" type="Label" parent="EndGameTray/GameResultsScreen/Statistics"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+custom_minimum_size = Vector2(80, 26)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+text = "stats:"
+label_settings = SubResource("LabelSettings_pv7qm")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="HSeparator" type="HSeparator" parent="EndGameTray/GameResultsScreen/Statistics"]
+custom_minimum_size = Vector2(20, 0)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_ffajl")
+
+[node name="List" type="VBoxContainer" parent="EndGameTray/GameResultsScreen/Statistics"]
+layout_mode = 2
+
+[node name="Categories" type="VBoxContainer" parent="EndGameTray/GameResultsScreen/Statistics/List"]
+layout_mode = 2
+
+[node name="SwapsLabel" type="Label" parent="EndGameTray/GameResultsScreen/Statistics/List/Categories"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+custom_minimum_size = Vector2(160, 26)
+layout_mode = 2
+text = "Swaps Used:"
+label_settings = SubResource("LabelSettings_pv7qm")
+horizontal_alignment = 2
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="00" type="Label" parent="EndGameTray/GameResultsScreen/Statistics/List/Categories/SwapsLabel"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.01875
+anchor_right = 1.1529782
+anchor_bottom = 1.0
+text = "00"
+label_settings = SubResource("LabelSettings_58efj")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="DrawsLabel" type="Label" parent="EndGameTray/GameResultsScreen/Statistics/List/Categories"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+custom_minimum_size = Vector2(160, 26)
+layout_mode = 2
+text = "Draws Used:"
+label_settings = SubResource("LabelSettings_pv7qm")
+horizontal_alignment = 2
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="00" type="Label" parent="EndGameTray/GameResultsScreen/Statistics/List/Categories/DrawsLabel"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.01875
+anchor_right = 1.1529782
+anchor_bottom = 1.0
+text = "00"
+label_settings = SubResource("LabelSettings_58efj")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="PeekHandLabel" type="Label" parent="EndGameTray/GameResultsScreen/Statistics/List/Categories"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+custom_minimum_size = Vector2(160, 26)
+layout_mode = 2
+text = "peek hand used:"
+label_settings = SubResource("LabelSettings_pv7qm")
+horizontal_alignment = 2
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="00" type="Label" parent="EndGameTray/GameResultsScreen/Statistics/List/Categories/PeekHandLabel"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.01875
+anchor_right = 1.1529782
+anchor_bottom = 1.0
+text = "00"
+label_settings = SubResource("LabelSettings_58efj")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="PeekDeckLabel" type="Label" parent="EndGameTray/GameResultsScreen/Statistics/List/Categories"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+custom_minimum_size = Vector2(160, 26)
+layout_mode = 2
+text = "peek deck used:"
+label_settings = SubResource("LabelSettings_pv7qm")
+horizontal_alignment = 2
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="00" type="Label" parent="EndGameTray/GameResultsScreen/Statistics/List/Categories/PeekDeckLabel"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.01875
+anchor_right = 1.1529782
+anchor_bottom = 1.0
+text = "00"
+label_settings = SubResource("LabelSettings_58efj")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="BestRound" type="VBoxContainer" parent="EndGameTray"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -151.50003
+offset_top = -253.0
+offset_right = 73.49997
+offset_bottom = 198.0
+grow_horizontal = 2
+grow_vertical = 2
+scale = Vector2(1.3199975, 1.3199975)
+alignment = 1
+
+[node name="Label" type="Label" parent="EndGameTray/BestRound"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Best Round"
+label_settings = SubResource("LabelSettings_66vjv")
+
+[node name="VSeparator2" type="VSeparator" parent="EndGameTray/BestRound"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_bbg02")
+
+[node name="Scorebox" type="ColorRect" parent="EndGameTray/BestRound"]
+material = SubResource("ShaderMaterial_bdxum")
+custom_minimum_size = Vector2(216, 100)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="#__" type="Label" parent="EndGameTray/BestRound/Scorebox"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.01
+anchor_right = 0.32407406
+anchor_bottom = 0.99
+offset_top = -2.0
+offset_bottom = -2.0
+text = "0"
+label_settings = SubResource("LabelSettings_qaq6h")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="_#_" type="Label" parent="EndGameTray/BestRound/Scorebox"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.33333334
+anchor_top = 0.01
+anchor_right = 0.6666667
+anchor_bottom = 0.99
+offset_top = -2.0
+offset_bottom = -2.0
+text = "0"
+label_settings = SubResource("LabelSettings_qaq6h")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="__#" type="Label" parent="EndGameTray/BestRound/Scorebox"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.6712963
+anchor_top = 0.01
+anchor_right = 1.0046296
+anchor_bottom = 0.99
+offset_top = -2.0
+offset_bottom = -2.0
+text = "0"
+label_settings = SubResource("LabelSettings_qaq6h")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="VSeparator3" type="VSeparator" parent="EndGameTray/BestRound"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_bbg02")
+
+[node name="BestRoundHand" type="VBoxContainer" parent="EndGameTray/BestRound"]
+layout_mode = 2
+
+[node name="PlayerSlots1" type="HBoxContainer" parent="EndGameTray/BestRound/BestRoundHand"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="PlayerHandSlot0" type="ColorRect" parent="EndGameTray/BestRound/BestRoundHand/PlayerSlots1"]
+material = SubResource("ShaderMaterial_3jtyh")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="PlayerHandSlotMarker0" type="Marker2D" parent="EndGameTray/BestRound/BestRoundHand/PlayerSlots1/PlayerHandSlot0"]
+position = Vector2(31.000137, 42.909576)
+
+[node name="PlayerHandSlot1" type="ColorRect" parent="EndGameTray/BestRound/BestRoundHand/PlayerSlots1"]
+material = SubResource("ShaderMaterial_felqg")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="PlayerHandSlotMarker1" type="Marker2D" parent="EndGameTray/BestRound/BestRoundHand/PlayerSlots1/PlayerHandSlot1"]
+position = Vector2(32.4245, 42.909576)
+
+[node name="PlayerSlots2" type="HBoxContainer" parent="EndGameTray/BestRound/BestRoundHand"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="PlayerHandSlot2" type="ColorRect" parent="EndGameTray/BestRound/BestRoundHand/PlayerSlots2"]
+material = SubResource("ShaderMaterial_felqg")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="PlayerHandSlotMarker2" type="Marker2D" parent="EndGameTray/BestRound/BestRoundHand/PlayerSlots2/PlayerHandSlot2"]
+position = Vector2(30.242546, 42.81881)
+
+[node name="PlayerHandSlot3" type="ColorRect" parent="EndGameTray/BestRound/BestRoundHand/PlayerSlots2"]
+material = SubResource("ShaderMaterial_felqg")
+custom_minimum_size = Vector2(62, 87)
+layout_mode = 2
+
+[node name="PlayerHandSlotMarker3" type="Marker2D" parent="EndGameTray/BestRound/BestRoundHand/PlayerSlots2/PlayerHandSlot3"]
+position = Vector2(30.909355, 42.909576)
+
+[node name="VSeparator5" type="VSeparator" parent="EndGameTray/BestRound"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_bbg02")
+
+[node name="NavButtons" type="HBoxContainer" parent="EndGameTray"]
+layout_mode = 0
+offset_left = 373.0
+offset_top = 969.0
+offset_right = 671.0
+offset_bottom = 1023.0
+
+[node name="GiveUpButton" type="Button" parent="EndGameTray/NavButtons"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_ot1vi")
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9254902, 0.9411765, 0.94509804, 1)
+theme_override_colors/font_hover_color = Color(0.15294118, 0.68235296, 0.3764706, 1)
+theme_override_colors/font_hover_pressed_color = Color(0.94509804, 0.76862746, 0.05882353, 1)
+theme_override_fonts/font = ExtResource("4_66vjv")
+theme_override_font_sizes/font_size = 32
+text = "Quit"
+flat = true
+
+[node name="HSeparator" type="HSeparator" parent="EndGameTray/NavButtons"]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_66vjv")
+
+[node name="PlayAgainButton" type="TextureButton" parent="EndGameTray/NavButtons"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture_normal = ExtResource("8_b8dx4")
+texture_pressed = ExtResource("9_pyq02")
+texture_hover = ExtResource("10_nbo1m")
+
+[node name="Label" type="Label" parent="EndGameTray/NavButtons/PlayAgainButton"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.16
+anchor_top = 0.14814815
+anchor_right = 0.85
+anchor_bottom = 0.8703704
+offset_top = -2.0
+offset_bottom = -2.0
+text = "Play again"
+label_settings = SubResource("LabelSettings_5iwwa")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="NewStateTray" type="TextureRect" parent="."]
+material = SubResource("ShaderMaterial_58efj")
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 1.0
+offset_top = -49.0
+offset_right = 752.0
+offset_bottom = 49.0
+grow_vertical = 2
+texture = SubResource("GradientTexture2D_qaq6h")
+
+[node name="StateDisplay" type="ColorRect" parent="NewStateTray"]
+material = SubResource("ShaderMaterial_k6kgl")
+custom_minimum_size = Vector2(216, 56)
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.05725699
+anchor_top = 0.21428572
+anchor_right = 1.0
+anchor_bottom = 0.78571427
+grow_vertical = 2
+metadata/_edit_use_anchors_ = true
+
+[node name="RoundLabel" type="Label" parent="NewStateTray/StateDisplay"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.09259259
+anchor_top = 0.30357143
+anchor_right = 0.36574075
+anchor_bottom = 0.66071427
+offset_top = -2.0
+offset_right = 19.0
+offset_bottom = 4.0
+text = "Round 01"
+label_settings = SubResource("LabelSettings_bbg02")
+metadata/_edit_use_anchors_ = true
+
+[node name="TurnLabel" type="Label" parent="NewStateTray/StateDisplay"]
+visible = false
+texture_filter = 1
+material = SubResource("ShaderMaterial_jxrjt")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.09259259
+anchor_top = 0.30357143
+anchor_right = 0.36574075
+anchor_bottom = 0.66071427
+offset_top = -2.0
+offset_right = 19.0
+offset_bottom = 4.0
+text = "Your turn"
+label_settings = SubResource("LabelSettings_bbg02")
+metadata/_edit_use_anchors_ = true
+
+[node name="shadow" type="ColorRect" parent="."]
+visible = false
+custom_minimum_size = Vector2(0, 1080)
+layout_mode = 0
+offset_left = 2.0
+offset_right = 23.0
+offset_bottom = 1084.0
+color = Color(0.05882353, 0.09411765, 0.12941177, 0.4)
