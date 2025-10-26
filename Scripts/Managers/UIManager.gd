@@ -158,10 +158,9 @@ func show_tray() -> void:
 
 	if overlay:
 		overlay.visible = true
-		var overlay_color = overlay.color
-		overlay.color = Color(overlay_color.r, overlay_color.g, overlay_color.b, 0.0)
+		overlay.modulate = Color(1, 1, 1, 0)
 		var overlay_tween = create_tween()
-		overlay_tween.tween_property(overlay, "color:a", overlay_max_alpha, overlay_fade_in_duration)
+		overlay_tween.tween_property(overlay, "modulate:a", overlay_max_alpha, overlay_fade_in_duration)
 
 	# Fade out the UI panel when tray is shown
 	if ui_panel:
@@ -178,7 +177,6 @@ func show_tray() -> void:
 	if gm and gm.has_method("get_manager"):
 		var tm = gm.get_manager("TurnManager")
 		if tm and tm.has_method("_update_ui_opacity"):
-			print("UIManager: show_tray -> calling TurnManager._update_ui_opacity()")
 			tm._update_ui_opacity()
 
 	if tween and tween.is_running():
@@ -201,7 +199,7 @@ func hide_tray(force: bool = false) -> void:
 
 	if overlay:
 		var overlay_tween = create_tween()
-		overlay_tween.tween_property(overlay, "color:a", 0.0, overlay_fade_out_duration)
+		overlay_tween.tween_property(overlay, "modulate:a", 0.0, overlay_fade_out_duration)
 		overlay_tween.tween_callback(func(): overlay.visible = false)
 
 	# Fade in the UI panel when tray is hidden
@@ -229,10 +227,8 @@ func hide_tray(force: bool = false) -> void:
 			var tm = gm.get_manager("TurnManager")
 			if tm:
 				if tm.has_method("_update_ui_opacity"):
-					print("UIManager: tween finished -> calling TurnManager._update_ui_opacity()")
 					tm._update_ui_opacity()
 				if tm.has_method("_update_action_ui"):
-					print("UIManager: tween finished -> calling TurnManager._update_action_ui()")
 					tm._update_action_ui()
 	)
 

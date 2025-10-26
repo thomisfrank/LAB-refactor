@@ -63,6 +63,7 @@ var is_dragging: bool = false
 var is_in_play_area: bool = false
 var is_locked: bool = false
 var lock_rotation: bool = false
+var locked_drop_zone_rotation: float = 0.0  # Stores the rotation set when dropped, for restoration after relayout
 var hover_tween: Tween
 var prev_global_position: Vector2 = Vector2.ZERO
 var drag_offset: Vector2 = Vector2.ZERO
@@ -489,15 +490,19 @@ func handle_tilt(delta: float) -> void:
 		mat.set_shader_parameter("x_rot", lerp(current_rot_x, 0.0, delta * 5.0))
 
 func handle_wobble(delta: float) -> void:
-	if is_in_play_area or lock_rotation:
-		return
-
 	var velocity = (global_position - prev_global_position) / delta
 	var speed = velocity.length()
 	
 	var resting_rotation_rad = 0.0
 	if not is_player_card:
 		resting_rotation_rad = PI
+	
+	if is_in_play_area or lock_rotation:
+		# EXPLICITLY reset the visuals rotation (the wobble/idle offset) to the resting rotation.
+		# The parent InteractiveCard node holds the randomized tilt for cards in play area.
+		if visuals.rotation != resting_rotation_rad:
+			visuals.rotation = resting_rotation_rad
+		return
 	
 	var target_rotation_rad = resting_rotation_rad
 	

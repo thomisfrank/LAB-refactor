@@ -108,10 +108,12 @@ func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = 
 	var random_rotation_degrees = randf_range(-rotation_correction_degrees, rotation_correction_degrees)
 	var target_rotation_rad = deg_to_rad(random_rotation_degrees)
 
-	# Apply rotation to both the card node and its visuals to avoid other code (wobble/hover)
+	# Apply rotation to the card node
 	card_node.rotation = target_rotation_rad
-	if card_node.has_node("VisualsContainer/Visuals"):
-		card_node.get_node("VisualsContainer/Visuals").rotation = target_rotation_rad
+	
+	# Store the locked rotation so we can restore it after relayout
+	if "locked_drop_zone_rotation" in card_node:
+		card_node.locked_drop_zone_rotation = target_rotation_rad
 
 	# Defensive: clear dragging state and mark as in-play so wobble/drag logic won't override rotation
 	# Set properties only if they exist on the card node
@@ -153,40 +155,16 @@ func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = 
 	if "is_in_play_area" in card_node:
 		card_node.is_in_play_area = true
 
-	# Resolve card effect via EffectsManager BEFORE disintegration
+	# Resolve card effect via EffectsManager
+	# ALL cards handle their own discard/movement after the effect completes
+	# The DropZone does NOT automatically discard any cards
 	var gm = get_node_or_null("/root/GameManager")
 	if gm and gm.has_method("get_manager"):
 		var effects_manager = gm.get_manager("EffectManager")
 		if effects_manager and effects_manager.has_method("resolve_effect"):
 			effects_manager.resolve_effect(card_node)
 
-	# Check if this is a swap card - if so, don't disintegrate (the swap effect handles it)
-	var is_swap_card = false
-	var actual_card = card_node.get_node_or_null("VisualsContainer/Visuals/CardViewport/SubViewport/Card")
-	if actual_card and "card_data" in actual_card:
-		var effect_type = actual_card.card_data.get("effect_type", "")
-		if effect_type == "" or effect_type == "swap":
-			var suit = actual_card.card_data.get("suit", "")
-			if suit.to_lower() == "swap":
-				is_swap_card = true
-
-	# Wait before starting disintegration (but skip for swap cards)
-	if _disintegrate and card_node.has_method("apply_disintegration") and not is_swap_card:
-		await get_tree().create_timer(discard_delay_seconds).timeout
-		card_node.apply_disintegration(disintegration_shader, shader_start_progress, shader_target_progress, shader_tween_duration, shader_tween_ease, shader_tween_trans)
-
-	# Notify TurnManager that an action was played (for now, any card dropped counts)
-	var tm: Node = null
-	if gm and gm.has_method("get_manager"):
-		tm = gm.get_manager("TurnManager")
-	if not tm:
-		tm = get_node_or_null("/root/main/Managers/TurnManager")
-	if tm and tm.has_method("record_action_played"):
-		# Determine ownership via card property if available
-		var is_player_card = true
-		if card_node.has_method("get") and "is_player_card" in card_node:
-			is_player_card = card_node.is_player_card
-		tm.record_action_played(is_player_card)
+	# Note: Action consumption and card discard are handled by EffectsManager AFTER the effect resolves
 
 func _create_dust_effect(card_node: Node) -> void:
 	# Get card bounds for corner positions

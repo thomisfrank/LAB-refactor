@@ -260,9 +260,7 @@ func next_turn() -> void:
 ## Update UI opacity based on whose turn it is
 func _update_ui_opacity() -> void:
 	pass
-	print("TurnManager: _update_ui_opacity called")
 	# Debug: show key state
-	print("  is_player_turn=", is_player_turn, " player_actions=", player_actions_remaining, " opponent_actions=", opponent_actions_remaining)
 
 	# Check if the game state tray is active. Prefer explicit flag on UIManager to avoid timing issues.
 	var tray_visible = false
@@ -274,23 +272,18 @@ func _update_ui_opacity() -> void:
 	if ui_manager:
 		if "tray_active" in ui_manager:
 			tray_visible = bool(ui_manager.tray_active)
-			print("  DEBUG: ui_manager.tray_active=", ui_manager.tray_active)
 		elif ui_manager.game_state_tray:
 			tray_visible = ui_manager.game_state_tray.visible
-			print("  DEBUG: using game_state_tray.visible=", tray_visible)
 	else:
-		print("  DEBUG: ui_manager is null (trying direct lookup)")
 		# Try direct node lookup as fallback
 		var ui_mgr = get_node_or_null("/root/main/Managers/UIManager")
 		if not ui_mgr:
 			ui_mgr = get_node_or_null("/root/GameManager/UIManager")
 		if ui_mgr and "tray_active" in ui_mgr:
 			tray_visible = bool(ui_mgr.tray_active)
-			print("  DEBUG: found UIManager via direct lookup, tray_active=", ui_mgr.tray_active)
 	
 	# If tray is visible, both sides should be faded equally
 	if tray_visible:
-		print("  tray is visible -> forcing both sides to inactive opacity=", inactive_player_opacity)
 		_set_side_ui_opacity("PlayerUI", inactive_player_opacity)
 		_set_side_ui_opacity("OpponentUI", inactive_player_opacity)
 		
@@ -300,14 +293,10 @@ func _update_ui_opacity() -> void:
 		var oppanel = get_node_or_null(base_path + "OpponentUI")
 		if ppanel:
 			_force_set_action_icons_fill(ppanel, 0.0)
-			print("  cleared player action icons")
 		if oppanel:
 			_force_set_action_icons_fill(oppanel, 0.0)
-			print("  cleared opponent action icons")
 		
 		return
-	else:
-		print("  tray NOT visible -> using normal turn-based opacity")
 	
 	# Normal turn-based opacity when tray is not showing
 	var player_opacity = active_player_opacity if is_player_turn else inactive_player_opacity
@@ -324,7 +313,6 @@ func _update_ui_opacity() -> void:
 		# print("TurnManager: calling ui_manager.set_active_player(", is_player_turn, ")")
 		ui_manager.set_active_player(is_player_turn)
 
-	print("  applying opacities -> player:", player_opacity, " opponent:", opponent_opacity)
 	_set_side_ui_opacity("PlayerUI", player_opacity)
 	_set_side_ui_opacity("OpponentUI", opponent_opacity)
 
@@ -339,7 +327,6 @@ func _update_action_ui() -> void:
 		tray_is_active = bool(ui_manager.tray_active)
 	
 	if tray_is_active:
-		print("TurnManager: _update_action_ui() skipped (tray is active)")
 		return
 	
 	# Player

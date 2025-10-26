@@ -1,0 +1,105 @@
+[gd_scene load_steps=11 format=3 uid="uid://k38net5o8hkc"]
+
+[ext_resource type="Shader" uid="uid://b3xlk1vkq2k5b" path="res://Scripts/Shader/actionIcon.gdshader" id="1_0sxi0"]
+[ext_resource type="Texture2D" uid="uid://r4mhdhnpayc0" path="res://Assets/UI/Button.png" id="2_ib837"]
+[ext_resource type="Texture2D" uid="uid://bn3yv5sw5wafi" path="res://Assets/UI/ButtonPressed.png" id="3_54l0h"]
+[ext_resource type="Texture2D" uid="uid://c2slcp3v2jn8k" path="res://Assets/UI/ButtonHover.png" id="4_jsr8b"]
+[ext_resource type="Shader" uid="uid://c82r54bghps0l" path="res://Scripts/Shader/TextJitter.gdshader" id="5_fe4ka"]
+[ext_resource type="FontFile" uid="uid://ckij0le131vxg" path="res://Assets/fonts/OpenSansPXBold.ttf" id="6_xucbt"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_bf6po"]
+shader = ExtResource("1_0sxi0")
+shader_parameter/border_color = Color(0.9254902, 0.9411765, 0.94509804, 0)
+shader_parameter/fill_color = Color(0.15294118, 0.68235296, 0.3764706, 0)
+shader_parameter/corner_radius = 0.10000000475
+shader_parameter/border_thickness = 0.0970000046075
+shader_parameter/fill_alpha = 1.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_d4r3q"]
+shader = ExtResource("5_fe4ka")
+shader_parameter/jitter_rate = 6.0000002375
+shader_parameter/jitter_amount = 0.002000000095
+
+[sub_resource type="LabelSettings" id="LabelSettings_oye7b"]
+font = ExtResource("6_xucbt")
+font_size = 32
+font_color = Color(0.17254902, 0.24313726, 0.3137255, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_5cck0"]
+
+[node name="ShowCase" type="Node2D"]
+metadata/_edit_vertical_guides_ = [858.0, 1355.0]
+
+[node name="ShowCaseSlot" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_bf6po")
+custom_minimum_size = Vector2(500, 700)
+offset_left = 856.0
+offset_top = -281.0
+offset_right = 1356.0
+offset_bottom = 419.0
+color = Color(1, 1, 1, 0)
+
+[node name="ShowCaseSlotMarker" type="Marker2D" parent="ShowCaseSlot"]
+position = Vector2(31.000015, 43)
+
+[node name="ShowCaseButtons" type="HBoxContainer" parent="."]
+offset_left = 860.0
+offset_top = 818.0
+offset_right = 1353.0
+offset_bottom = 872.0
+size_flags_horizontal = 4
+
+[node name="SwapDrawButton" type="TextureButton" parent="ShowCaseButtons"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture_normal = ExtResource("2_ib837")
+texture_pressed = ExtResource("3_54l0h")
+texture_hover = ExtResource("4_jsr8b")
+
+[node name="Label" type="Label" parent="ShowCaseButtons/SwapDrawButton"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_d4r3q")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.06
+anchor_top = 0.14814815
+anchor_right = 0.935
+anchor_bottom = 0.8703704
+offset_top = -2.0
+offset_bottom = -2.0
+text = "Swap/Draw"
+label_settings = SubResource("LabelSettings_oye7b")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="HSeparator" type="HSeparator" parent="ShowCaseButtons"]
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_5cck0")
+
+[node name="KeepButton" type="TextureButton" parent="ShowCaseButtons"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture_normal = ExtResource("2_ib837")
+texture_pressed = ExtResource("3_54l0h")
+texture_hover = ExtResource("4_jsr8b")
+
+[node name="Label" type="Label" parent="ShowCaseButtons/KeepButton"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_d4r3q")
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.05
+anchor_top = 0.1574074
+anchor_right = 0.94
+anchor_bottom = 0.8796296
+offset_top = -2.0
+offset_bottom = -2.0
+text = "Keep my card"
+label_settings = SubResource("LabelSettings_oye7b")
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
