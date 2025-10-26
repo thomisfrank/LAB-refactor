@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://k78r5mnfr86l"]
+[gd_scene load_steps=21 format=3 uid="uid://k78r5mnfr86l"]
 
 [ext_resource type="Script" uid="uid://dt01fmi0ud6n0" path="res://Scripts/Core/main.gd" id="1_21xkr"]
 [ext_resource type="Script" uid="uid://diupc0dagbyfv" path="res://Scripts/Managers/card_manager.gd" id="1_bo1nx"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" uid="uid://bghl75ky5hfgf" path="res://Scripts/Managers/ai_manager.gd" id="5_h1bgf"]
 [ext_resource type="PackedScene" uid="uid://gdkre2xkksra" path="res://Scenes/Core/deck.tscn" id="6_6bp64"]
 [ext_resource type="Script" uid="uid://bayld4regrxic" path="res://Scripts/Managers/InfoScreenManager.gd" id="6_b3802"]
+[ext_resource type="Script" uid="uid://eb6xrlbug6il" path="res://Scripts/Managers/EffectsManager.gd" id="7_b3802"]
 [ext_resource type="PackedScene" uid="uid://djx8niab6ivv2" path="res://Scenes/Core/discard_pile.tscn" id="7_hptm8"]
 [ext_resource type="PackedScene" uid="uid://gu4ayccbc2mf" path="res://Scenes/Core/drop_zone.tscn" id="7_ynf5e"]
 [ext_resource type="PackedScene" uid="uid://bd7r3kr8kyerm" path="res://Scenes/UI/ui_panel.tscn" id="10_d1ilt"]
@@ -80,14 +81,7 @@ inactive_player_opacity = 0.2
 action_pop_padding = 12.0
 action_pop_grow_time = 0.02
 end_of_actions_delay = 1.0
-pass_particle_amount = 60
-pass_particle_lifetime = 0.5
-pass_particle_speed = 100.0
-pass_particle_spread_degrees = 1000.0
-pass_particle_gravity = Vector3(50, 98, 30)
-pass_particle_scale_min = 1.0
-pass_particle_scale_max = 5.0
-pass_particle_color = Color(0.15294118, 0.68235296, 0.3764706, 1)
+dust_particle_size = 8.0
 
 [node name="UIManager" type="Node" parent="Managers"]
 script = ExtResource("1_uim")
@@ -104,6 +98,9 @@ move_duration = 0.8
 [node name="InfoScreenManager" type="Node" parent="Managers"]
 script = ExtResource("6_b3802")
 typing_speed = 0.035
+
+[node name="EffectsManager" type="Node" parent="Managers"]
+script = ExtResource("7_b3802")
 
 [node name="BackLayerUI" type="CanvasLayer" parent="."]
 layer = -10
@@ -236,5 +233,10 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 1, 1, 0)
 metadata/_edit_lock_ = true
+
+[node name="InteractiveCard" parent="FrontLayerUI" instance=ExtResource("1_jjgbg")]
+visible = false
+position = Vector2(1229, 619)
+scale = Vector2(0.4, 0.4)
 
 [connection signal="area_entered" from="Parallax/DropZone" to="Parallax/DropZone" method="_on_area_entered"]

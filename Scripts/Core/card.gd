@@ -1,5 +1,7 @@
 extends Button
 
+var card_data: Dictionary = {}
+
 @onready var card_face = $CardFace
 @onready var card_icon = $CardFace/Icon
 @onready var value_label = $CardFace/ValueLabel
@@ -18,6 +20,8 @@ func set_card_data(data_name: String) -> void:
 	if data.is_empty():
 		push_error("[Card] ERROR: No data found for: %s" % data_name)
 		return
+	
+	self.card_data = data
 	
 	# Applying card data silently
 	

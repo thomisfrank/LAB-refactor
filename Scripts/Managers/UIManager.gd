@@ -19,12 +19,20 @@ signal turn_message_finished
 @export var overlay_fade_in_duration: float = 0.3
 @export var overlay_fade_out_duration: float = 0.3
 @export var overlay_max_alpha: float = 0.7411765
+@export var ui_panel_fade_alpha: float = 0.3
+@export var ui_panel_fade_duration: float = 0.3
 
 @export_group("Text Animation")
 @export var typing_speed: float = 0.05
 @export var new_state_beat_duration: float = 0.8
 @export var round_display_duration: float = 0.8
 @export var turn_display_duration: float = 0.9
+
+@export_group("Button Dust Effect")
+@export var dust_particle_count: int = 8
+@export var dust_particle_size: float = 4.0
+@export var dust_lifetime: float = 0.5
+@export var dust_color: Color = Color(0.9, 0.9, 0.8, 0.8)
 
 # --- Node References ---
 var game_state_tray: Control
@@ -33,6 +41,7 @@ var end_game_tray: Control
 var new_state_tray: Control
 var new_state_label: Label
 var overlay: ColorRect
+var ui_panel: Control
 var player_actions_panel: Node
 var opponent_actions_panel: Node
 var player_actions_left_label: Node
@@ -42,6 +51,9 @@ var opponent_score_box: Node
 var okay_button: TextureButton
 var play_again_button: TextureButton
 var player_pass_button: TextureButton
+
+# --- Runtime flags ---
+var tray_active: bool = false
 
 # --- Private State ---
 var tween: Tween
@@ -57,7 +69,7 @@ func _ready() -> void:
 			game_state_tray = front_layer.get_node_or_null("GameStateTray")
 			overlay = front_layer.get_node_or_null("Overlay")
 			
-			var ui_panel = front_layer.get_node_or_null("UIPanel")
+			ui_panel = front_layer.get_node_or_null("UIPanel")
 			if ui_panel:
 				player_actions_panel = ui_panel.get_node_or_null("TurnEconomy/PlayerUI")
 				opponent_actions_panel = ui_panel.get_node_or_null("TurnEconomy/OpponentUI")
@@ -106,25 +118,31 @@ func _ready() -> void:
 	if end_game_tray: end_game_tray.visible = false
 	if new_state_tray: new_state_tray.visible = false
 	if overlay: overlay.visible = false
+	
+	# Ensure both player/opponent UI start at the same opacity (will be updated when tray shows)
+	# This prevents one side from being fully visible at game start
+	call_deferred("_sync_initial_ui_opacity")
+
+
+func _sync_initial_ui_opacity() -> void:
+	# If the game state tray will be shown at start, ensure both sides are faded equally
+	var gm = get_node_or_null("/root/GameManager")
+	if gm and gm.has_method("get_manager"):
+		var tm = gm.get_manager("TurnManager")
+		if tm and tm.has_method("_update_ui_opacity"):
+			tm._update_ui_opacity()
 
 
 # --- Signal Handlers ---
 func _on_game_state_changed(new_state: int) -> void:
 	if not GameManager_GameState: return
 
-	var state_name = ""
 	match new_state:
 		GameManager_GameState.GameState.ROUND_END:
-			state_name = "ROUND_END (endround)"
-			print("[UIManager] %s - GameStateTray fired for: %s" % [Time.get_ticks_msec(), state_name])
 			_show_tray_content(end_round_tray)
 		GameManager_GameState.GameState.GAME_OVER:
-			state_name = "GAME_OVER (endgame)"
-			print("[UIManager] %s - GameStateTray fired for: %s" % [Time.get_ticks_msec(), state_name])
 			_show_tray_content(end_game_tray)
 		GameManager_GameState.GameState.ROUND_START:
-			state_name = "ROUND_START (newstate)"
-			print("[UIManager] %s - GameStateTray fired for: %s" % [Time.get_ticks_msec(), state_name])
 			var gm = get_node_or_null("/root/GameManager")
 			var rm = get_node_or_null("/root/main/Managers/RoundManager")
 			if gm and rm:
@@ -138,8 +156,6 @@ func _on_game_state_changed(new_state: int) -> void:
 func show_tray() -> void:
 	if not is_instance_valid(game_state_tray): return
 
-	print("[UIManager] %s - show_tray called, making game_state_tray visible" % Time.get_ticks_msec())
-
 	if overlay:
 		overlay.visible = true
 		var overlay_color = overlay.color
@@ -147,7 +163,23 @@ func show_tray() -> void:
 		var overlay_tween = create_tween()
 		overlay_tween.tween_property(overlay, "color:a", overlay_max_alpha, overlay_fade_in_duration)
 
+	# Fade out the UI panel when tray is shown
+	if ui_panel:
+		var ui_tween = create_tween()
+		ui_tween.tween_property(ui_panel, "modulate:a", ui_panel_fade_alpha, ui_panel_fade_duration)
+
+	# Make the tray visible first so TurnManager sees the correct state
+	# mark tray active (avoid timing issues reading visible)
+	tray_active = true
 	game_state_tray.visible = true
+
+	# Update TurnManager to fade both sides equally when tray is visible
+	var gm = get_node_or_null("/root/GameManager")
+	if gm and gm.has_method("get_manager"):
+		var tm = gm.get_manager("TurnManager")
+		if tm and tm.has_method("_update_ui_opacity"):
+			print("UIManager: show_tray -> calling TurnManager._update_ui_opacity()")
+			tm._update_ui_opacity()
 
 	if tween and tween.is_running():
 		tween.kill()
@@ -162,18 +194,22 @@ func show_tray() -> void:
 
 func hide_tray(force: bool = false) -> void:
 	if not _can_hide_automatically and not force:
-		print("[UIManager] %s - hide_tray called but blocked (_can_hide_automatically=false, force=%s)" % [Time.get_ticks_msec(), force])
 		return
 		
 	if not is_instance_valid(game_state_tray):
 		return
 
-	print("[UIManager] %s - GameStateTray hiding (going back)" % Time.get_ticks_msec())
-
 	if overlay:
 		var overlay_tween = create_tween()
 		overlay_tween.tween_property(overlay, "color:a", 0.0, overlay_fade_out_duration)
 		overlay_tween.tween_callback(func(): overlay.visible = false)
+
+	# Fade in the UI panel when tray is hidden
+	if ui_panel:
+		var ui_tween = create_tween()
+		ui_tween.tween_property(ui_panel, "modulate:a", 1.0, ui_panel_fade_duration)
+
+	# Note: delay restoring TurnManager opacity until the tray is fully hidden (see tween callback)
 
 	if tween and tween.is_running():
 		tween.kill()
@@ -186,22 +222,24 @@ func hide_tray(force: bool = false) -> void:
 	tween.tween_callback(func():
 		game_state_tray.visible = false
 		emit_signal("tray_animation_finished", "hide")
+		# mark tray inactive and then notify TurnManager to restore opacities and action UI
+		tray_active = false
+		var gm = get_node_or_null("/root/GameManager")
+		if gm and gm.has_method("get_manager"):
+			var tm = gm.get_manager("TurnManager")
+			if tm:
+				if tm.has_method("_update_ui_opacity"):
+					print("UIManager: tween finished -> calling TurnManager._update_ui_opacity()")
+					tm._update_ui_opacity()
+				if tm.has_method("_update_action_ui"):
+					print("UIManager: tween finished -> calling TurnManager._update_action_ui()")
+					tm._update_action_ui()
 	)
 
 
 # --- Private Helpers ---
 func _show_tray_content(tray_node: Control) -> void:
 	if not is_instance_valid(tray_node): return
-	
-	var tray_type = "unknown"
-	if tray_node == new_state_tray:
-		tray_type = "newstate"
-	elif tray_node == end_round_tray:
-		tray_type = "endround"
-	elif tray_node == end_game_tray:
-		tray_type = "endgame"
-	
-	print("[UIManager] %s - Showing tray content: %s" % [Time.get_ticks_msec(), tray_type])
 	
 	for tray in [end_round_tray, end_game_tray, new_state_tray]:
 		if is_instance_valid(tray) and tray != tray_node:
@@ -293,7 +331,71 @@ func _format_digits(value: int, length: int) -> Array:
 	return out
 
 
+# Helper function to create dust effect on button press
+func _create_button_dust_effect(button: Control) -> void:
+	if not button:
+		return
+	
+	# Get button center position and size
+	var center_pos = Vector2.ZERO
+	var button_size = Vector2.ZERO
+	if button.has_method("get_global_rect"):
+		var gr = button.get_global_rect()
+		center_pos = gr.position + gr.size * 0.5
+		button_size = gr.size
+	elif "global_position" in button:
+		center_pos = button.global_position
+		if "size" in button:
+			button_size = button.size
+	
+	# Calculate corners relative to center
+	var half_width = button_size.x * 0.5
+	var half_height = button_size.y * 0.5
+	var corners = [
+		Vector2(-half_width, -half_height),  # Top-left
+		Vector2(half_width, -half_height),   # Top-right
+		Vector2(-half_width, half_height),   # Bottom-left
+		Vector2(half_width, half_height)     # Bottom-right
+	]
+	
+	# Create dust particles at each corner
+	for corner in corners:
+		for i in range(2):  # 2 particles per corner
+			var dust = ColorRect.new()
+			
+			# Try to add to FrontLayerUI if available, otherwise use current node
+			var front_layer = get_node_or_null("/root/main/FrontLayerUI")
+			if front_layer:
+				front_layer.add_child(dust)
+			else:
+				add_child(dust)
+			
+			# Setup dust particle
+			dust.size = Vector2(dust_particle_size, dust_particle_size)
+			dust.color = dust_color
+			dust.global_position = center_pos + corner
+			dust.z_index = 10
+			
+			# Animate dust particle
+			var dust_tween = create_tween()
+			dust_tween.set_parallel(true)
+			
+			# Random direction outward from corner
+			var angle = randf_range(-PI/4, PI/4) + atan2(corner.y, corner.x)
+			var direction = Vector2(cos(angle), sin(angle))
+			var distance = randf_range(30, 60)
+			var target_pos = dust.global_position + direction * distance
+			
+			# Animate position and fade
+			dust_tween.tween_property(dust, "global_position", target_pos, dust_lifetime)
+			dust_tween.tween_property(dust, "modulate:a", 0.0, dust_lifetime)
+			
+			# Clean up particle when done
+			dust_tween.finished.connect(func(): dust.queue_free())
+
+
 func _on_okay_button_pressed() -> void:
+	_create_button_dust_effect(okay_button)
 	hide_tray(true)
 	var gm = get_node_or_null("/root/GameManager")
 	if gm and gm.has_method("continue_to_next_round"):
@@ -301,6 +403,7 @@ func _on_okay_button_pressed() -> void:
 
 
 func _on_play_again_pressed() -> void:
+	_create_button_dust_effect(play_again_button)
 	hide_tray(true)
 	var gm = get_node_or_null("/root/GameManager")
 	if gm and gm.has_method("restart_game"):
@@ -308,7 +411,7 @@ func _on_play_again_pressed() -> void:
 
 
 func _on_player_pass_pressed() -> void:
-	print("[UIManager] Player pass button pressed")
+	_create_button_dust_effect(player_pass_button)
 	var gm = get_node_or_null("/root/GameManager")
 	var tm = null
 	if gm and gm.has_method("get_manager"):
@@ -325,14 +428,12 @@ func _on_player_pass_pressed() -> void:
 func set_pass_button_enabled(enabled: bool) -> void:
 	if player_pass_button:
 		player_pass_button.disabled = not enabled
-		print("[UIManager] Pass button %s" % ("enabled" if enabled else "disabled"))
 
 
 func show_turn_message(is_player_turn: bool) -> void:
 	if not is_instance_valid(new_state_label): return
 	
 	var turn_text := "Your Turn" if is_player_turn else "Opponent's Turn"
-	print("[UIManager] %s - Showing turn message: %s" % [Time.get_ticks_msec(), turn_text])
 	
 	new_state_label.text = turn_text
 	new_state_label.visible_characters = 0
@@ -352,31 +453,19 @@ func show_turn_message(is_player_turn: bool) -> void:
 		)
 
 
-func show_end_round_screen(winner: int, player_total: int, opponent_total: int, player_cards_info: Array = [], opponent_cards_info: Array = []) -> void:
-	print("[UIManager] %s - show_end_round_screen called (winner=%s)" % [Time.get_ticks_msec(), winner])
-	# The EndRoundTray is shown by _on_game_state_changed when ROUND_END fires
-	# This method is called by GameManager to populate the tray with data
-	# For now, just ensure the tray stays visible
-	# TODO: Populate EndRoundTray with card info and totals
+func show_end_round_screen(_winner: int, _player_total: int, _opponent_total: int, _player_cards_info: Array = [], _opponent_cards_info: Array = []) -> void:
+	pass
 
 
 func await_end_round_close() -> void:
-	print("[UIManager] %s - await_end_round_close: waiting for user to close end round tray" % Time.get_ticks_msec())
 	# Wait for the okay button to be pressed
-	# The okay button calls hide_tray(true) which will close the tray
-	# We need to wait for that to happen
 	if not end_round_tray or not end_round_tray.visible:
 		return
 	
 	# Wait for the tray to be hidden
 	while end_round_tray.visible:
 		await get_tree().process_frame
-	
-	print("[UIManager] %s - End round tray closed by user" % Time.get_ticks_msec())
 
 
-func show_game_over_screen(winner: int, winner_score: int) -> void:
-	print("[UIManager] %s - show_game_over_screen called (winner=%s, score=%s)" % [Time.get_ticks_msec(), winner, winner_score])
-	# The EndGameTray is shown by _on_game_state_changed when GAME_OVER fires
-	# This method is called by GameManager to populate the tray with data
-	# TODO: Populate EndGameTray with winner info and final score
+func show_game_over_screen(_winner: int, _winner_score: int) -> void:
+	pass

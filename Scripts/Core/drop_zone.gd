@@ -99,6 +99,9 @@ func contains_global_position(pos: Vector2) -> bool:
 
 # Called by cards when dropped in this zone
 func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = true) -> void:
+	# Show the drop zone visual briefly (especially for AI plays that don't drag)
+	_fade_in()
+	
 	var play_area_marker = $PlayAreaCardSlot/PlayAreaCardSlotMarker
 	
 	# Snap position to the play area card slot marker
@@ -110,8 +113,8 @@ func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = 
 
 	# Apply rotation to both the card node and its visuals to avoid other code (wobble/hover)
 	card_node.rotation = target_rotation_rad
-	if card_node.has_node("Visuals"):
-		card_node.get_node("Visuals").rotation = target_rotation_rad
+	if card_node.has_node("VisualsContainer/Visuals"):
+		card_node.get_node("VisualsContainer/Visuals").rotation = target_rotation_rad
 
 	# Defensive: clear dragging state and mark as in-play so wobble/drag logic won't override rotation
 	# Set properties only if they exist on the card node
@@ -136,16 +139,20 @@ func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = 
 		card_node.prev_global_position = card_node.global_position
 
 	# Remove shadow and reset z-index
-	var shadow_node = card_node.get_node_or_null("Visuals/Shadow")
+	var shadow_node = card_node.get_node_or_null("VisualsContainer/Visuals/Shadow")
 	if shadow_node:
 		shadow_node.visible = false
 	card_node.z_index = 0
 
 	# Create dust cloud effect at card corners
 	_create_dust_effect(card_node)
+	
+	# Fade out the drop zone visual after a brief moment (for AI plays)
+	await get_tree().create_timer(0.3).timeout
+	_fade_out()
 
 	# Disable interactivity by ignoring mouse events on the card's viewport
-	var card_viewport = card_node.get_node_or_null("Visuals/CardViewport")
+	var card_viewport = card_node.get_node_or_null("VisualsContainer/Visuals/CardViewport")
 	if card_viewport:
 		card_viewport.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
@@ -153,13 +160,19 @@ func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = 
 	if "is_in_play_area" in card_node:
 		card_node.is_in_play_area = true
 
+	# Resolve card effect via EffectsManager BEFORE disintegration
+	var gm = get_node_or_null("/root/GameManager")
+	if gm and gm.has_method("get_manager"):
+		var effects_manager = gm.get_manager("EffectManager")
+		if effects_manager and effects_manager.has_method("resolve_effect"):
+			effects_manager.resolve_effect(card_node)
+
 	# Wait before starting disintegration
 	if _disintegrate and card_node.has_method("apply_disintegration"):
 		await get_tree().create_timer(discard_delay_seconds).timeout
 		card_node.apply_disintegration(disintegration_shader, shader_start_progress, shader_target_progress, shader_tween_duration, shader_tween_ease, shader_tween_trans)
 
 	# Notify TurnManager that an action was played (for now, any card dropped counts)
-	var gm = get_node_or_null("/root/GameManager")
 	var tm: Node = null
 	if gm and gm.has_method("get_manager"):
 		tm = gm.get_manager("TurnManager")

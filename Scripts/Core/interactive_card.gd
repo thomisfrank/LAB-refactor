@@ -1,12 +1,17 @@
 extends Node2D
 
+# --- Signals ---
+signal discard_animation_complete
+
 # --- Node References & Exports ---
-@onready var visuals = $Visuals
-@onready var shadow = $Visuals/Shadow
-@onready var display_container: SubViewportContainer = $Visuals/CardViewport
-@onready var card_viewport = $Visuals/CardViewport/SubViewport/Card
-@onready var card_back = $Visuals/CardViewport/SubViewport/Card/CardBack
-@onready var card_face = $Visuals/CardViewport/SubViewport/Card/CardFace
+@onready var visuals = $VisualsContainer/Visuals
+@onready var shadow = $VisualsContainer/Visuals/Shadow
+@onready var display_container: SubViewportContainer = $VisualsContainer/Visuals/CardViewport
+@onready var card_viewport = $VisualsContainer/Visuals/CardViewport/SubViewport/Card
+@onready var card_back = $VisualsContainer/Visuals/CardViewport/SubViewport/Card/CardBack
+@onready var card_face = $VisualsContainer/Visuals/CardViewport/SubViewport/Card/CardFace
+@onready var lock_icon = $VisualsContainer/LockIcon
+@onready var description = $VisualsContainer/description
 
 
 # --- Card Appearance ---
@@ -28,6 +33,7 @@ var card_name: String = ""  # Set by card_manager when instantiating
 @export var hover_flourish_duration: float = 0.35  # Duration of hover animation
 @export var hover_flourish_ease: Tween.EaseType = Tween.EASE_OUT
 @export var hover_flourish_trans: Tween.TransitionType = Tween.TRANS_CUBIC
+@export var description_hover_delay: float = 1.0  # Seconds before description appears
 
 @export_group("Drag Feel")
 @export var drag_smoothing: float = 1.0  # 1.0 = instant, lower = smoother/floatier
@@ -64,6 +70,7 @@ var card_name: String = ""  # Set by card_manager when instantiating
 var is_mouse_over: bool = false
 var is_dragging: bool = false
 var is_in_play_area: bool = false
+var is_locked: bool = false  # If true, card cannot be dragged
 var lock_rotation: bool = false
 var hover_tween: Tween
 var prev_global_position: Vector2 = Vector2.ZERO
@@ -74,6 +81,7 @@ var card_index: int = 0  # Index of this card in the hand (for wave effect)
 # Hover state tracking
 var original_z_index: int = 0
 var hover_y_offset: float = 0.0
+var description_timer: float = 0.0  # Tracks how long we've been hovering
 
 # --- Debug Variables ---
 var debug_frame_counter: int = 0
@@ -168,6 +176,16 @@ func set_card_data(data_name: String) -> void:
 	
 	if card_viewport and card_viewport.has_method("set_card_data"):
 		card_viewport.set_card_data(data_name)
+		
+		# Update description text if available
+		if description and description.has_node("Label"):
+			var desc_label = description.get_node("Label")
+			# Wait a frame for card_viewport to load the data
+			await get_tree().process_frame
+			if card_viewport and "card_data" in card_viewport:
+				var data = card_viewport.card_data
+				if data.has("description"):
+					desc_label.text = data["description"]
 	else:
 		# card_viewport missing set_card_data method; ignore silently
 		pass
@@ -194,6 +212,7 @@ func _process(delta: float) -> void:
 	handle_tilt(delta)
 	handle_wobble(delta)
 	handle_hover_offset()
+	handle_description_hover(delta)
 	
 	# Debug position tracking (every N frames)
 	if enable_position_debug:
@@ -245,6 +264,7 @@ func flip_card():
 
 func _on_display_mouse_entered() -> void:
 	is_mouse_over = true
+	description_timer = 0.0  # Reset timer when hover starts
 	
 	# Show card info if face up
 	if card_face.visible and card_name != "":
@@ -280,6 +300,11 @@ func _on_display_mouse_entered() -> void:
 
 func _on_display_mouse_exited() -> void:
 	is_mouse_over = false
+	description_timer = 0.0  # Reset timer when hover ends
+	
+	# Hide description
+	if description:
+		description.visible = false
 	
 	# Clear info screen
 	var info_manager = get_node_or_null("/root/main/Managers/InfoScreenManager")
@@ -313,8 +338,9 @@ func drag_logic() -> void:
 	var turn_manager = get_node_or_null("/root/main/Managers/TurnManager")
 	if not turn_manager or not turn_manager.get_is_player_turn():
 		return
-	# Only allow dragging for player cards
-	if is_mouse_over and Input.is_action_just_pressed("click") and is_player_card:
+	
+	# Only allow dragging for player cards that are not locked
+	if is_mouse_over and Input.is_action_just_pressed("click") and is_player_card and not is_locked:
 		is_dragging = true
 		# Don't update home position here - it's set by CardManager
 		
@@ -384,6 +410,18 @@ func set_home_position(pos: Vector2, rot: float) -> void:
 	home_position = pos
 	home_rotation = rot
 
+func set_locked(locked: bool) -> void:
+	"""Lock or unlock the card. Locked cards cannot be dragged and show a lock icon."""
+	is_locked = locked
+	if lock_icon:
+		lock_icon.visible = locked
+	
+	# If card is being locked while dragging, cancel the drag
+	if is_locked and is_dragging:
+		is_dragging = false
+		z_index = original_z_index
+		snap_back_to_original_position()
+
 func snap_back_to_original_position() -> void:
 	# snap_back called (debug suppressed)
 	# Kill any existing snap back tween
@@ -424,6 +462,19 @@ func handle_shadow() -> void:
 		shadow.position.x = lerp(from_x, to_x, w)
 	
 	shadow.position.y = shadow_y_offset
+
+func handle_description_hover(delta: float) -> void:
+	"""Shows description after hovering for the specified delay duration."""
+	if not description:
+		return
+	
+	if is_mouse_over and not is_dragging:
+		description_timer += delta
+		if description_timer >= description_hover_delay and card_face.visible:
+			description.visible = true
+	else:
+		description_timer = 0.0
+		description.visible = false
 
 func handle_tilt(delta: float) -> void:
 	var mat = display_container.material as ShaderMaterial
@@ -499,6 +550,9 @@ func handle_hover_offset() -> void:
 	# This offset is applied to the visuals node rather than global_position to avoid conflicts
 	if not is_dragging:
 		visuals.position.y = hover_y_offset
+		# Also apply to lock icon so it follows the card when hovering
+		if lock_icon:
+			lock_icon.position.y = hover_y_offset
 
 
 func _on_flip_pressed() -> void:
@@ -564,6 +618,8 @@ func _move_to_discard_pile() -> void:
 		# Important: card must still be in the tree when add_to_discard_pile is called
 		if is_instance_valid(self) and is_inside_tree():
 			scene_root.add_to_discard_pile(self)
+			# Emit signal after successfully moving to discard
+			emit_signal("discard_animation_complete")
 		else:
 			pass
 			# interactive card invalid or not in tree; freeing

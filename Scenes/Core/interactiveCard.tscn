@@ -1,9 +1,13 @@
-[gd_scene load_steps=9 format=3 uid="uid://hicesjantdjt"]
+[gd_scene load_steps=15 format=3 uid="uid://hicesjantdjt"]
 
 [ext_resource type="Shader" uid="uid://b7ew8d41jwrf2" path="res://Scripts/Shader/perspective.gdshader" id="1_7ebid"]
 [ext_resource type="Script" uid="uid://bldwvpjh88qlo" path="res://Scripts/Core/interactive_card.gd" id="1_pgduw"]
 [ext_resource type="Shader" uid="uid://dl18pdf50a4mb" path="res://Scripts/Shader/CardBorder.gdshader" id="2_m41v0"]
 [ext_resource type="PackedScene" uid="uid://jk3nxgheskjr" path="res://Scenes/Core/card.tscn" id="2_sxeun"]
+[ext_resource type="Texture2D" uid="uid://cqtldsioiy6iq" path="res://Assets/UI/lock.png" id="5_m41v0"]
+[ext_resource type="Shader" uid="uid://dnb21ffhlaf34" path="res://Scripts/Shader/deckPile.gdshader" id="6_5xab2"]
+[ext_resource type="Texture2D" uid="uid://cb3vjmk6p2ucw" path="res://Assets/UI/PanelBox.png" id="7_yv4tv"]
+[ext_resource type="FontFile" uid="uid://ckij0le131vxg" path="res://Assets/fonts/OpenSansPXBold.ttf" id="8_7rosb"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_kpql8"]
 shader = ExtResource("2_m41v0")
@@ -26,6 +30,18 @@ shader_parameter/y_rot = 0.0
 shader_parameter/x_rot = 0.0
 shader_parameter/inset = 0.0
 
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_8o0b3"]
+shader = ExtResource("6_5xab2")
+shader_parameter/fill_color = Color(1, 1, 1, 1)
+shader_parameter/outline_color = Color(0.2, 0.25882354, 0.34901962, 1)
+shader_parameter/pixel_grid_size = 32.0
+shader_parameter/corner_size = 3
+
+[sub_resource type="LabelSettings" id="LabelSettings_tdpwy"]
+font = ExtResource("8_7rosb")
+font_size = 40
+font_color = Color(0.2, 0.25882354, 0.34901962, 1)
+
 [node name="InteractiveCard" type="Node2D"]
 script = ExtResource("1_pgduw")
 max_tilt_angle = 8.0
@@ -46,10 +62,14 @@ flip_duration = 0.15
 flip_trans = 9
 flip_pop_duration = 0.2
 
-[node name="Visuals" type="Node2D" parent="."]
+[node name="VisualsContainer" type="VBoxContainer" parent="."]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Visuals" type="Node2D" parent="VisualsContainer"]
 position = Vector2(-290, -345)
 
-[node name="Shadow" type="Sprite2D" parent="Visuals"]
+[node name="Shadow" type="Sprite2D" parent="VisualsContainer/Visuals"]
 modulate = Color(0, 0, 0, 0.23921569)
 z_index = -6
 z_as_relative = false
@@ -58,7 +78,7 @@ position = Vector2(-15, 50)
 texture = SubResource("GradientTexture2D_yfov1")
 offset = Vector2(250, 350)
 
-[node name="CardViewport" type="SubViewportContainer" parent="Visuals"]
+[node name="CardViewport" type="SubViewportContainer" parent="VisualsContainer/Visuals"]
 material = SubResource("ShaderMaterial_pgduw")
 custom_minimum_size = Vector2(500, 700)
 offset_left = 44.0
@@ -66,13 +86,13 @@ offset_right = 544.0
 offset_bottom = 700.0
 mouse_filter = 0
 
-[node name="SubViewport" type="SubViewport" parent="Visuals/CardViewport"]
+[node name="SubViewport" type="SubViewport" parent="VisualsContainer/Visuals/CardViewport"]
 transparent_bg = true
 handle_input_locally = false
 size = Vector2i(500, 700)
 render_target_update_mode = 4
 
-[node name="Card" parent="Visuals/CardViewport/SubViewport" instance=ExtResource("2_sxeun")]
+[node name="Card" parent="VisualsContainer/Visuals/CardViewport/SubViewport" instance=ExtResource("2_sxeun")]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
@@ -85,5 +105,35 @@ offset_bottom = 350.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[connection signal="mouse_entered" from="Visuals/CardViewport" to="." method="_on_display_mouse_entered"]
-[connection signal="mouse_exited" from="Visuals/CardViewport" to="." method="_on_display_mouse_exited"]
+[node name="LockIcon" type="Sprite2D" parent="VisualsContainer"]
+visible = false
+position = Vector2(-191, -395)
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("5_m41v0")
+
+[node name="description" type="Sprite2D" parent="VisualsContainer"]
+visible = false
+material = SubResource("ShaderMaterial_8o0b3")
+position = Vector2(33.000004, -342)
+scale = Vector2(1.2937917, 1.6254416)
+texture = ExtResource("7_yv4tv")
+
+[node name="Label" type="Label" parent="VisualsContainer/description"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -417.95758
+offset_top = -238.70433
+offset_right = -26.086182
+offset_bottom = -46.70433
+grow_horizontal = 2
+grow_vertical = 2
+text = "Look at the top card of the deck. Choose to draw it and discard this card, or keep this card"
+label_settings = SubResource("LabelSettings_tdpwy")
+vertical_alignment = 1
+autowrap_mode = 2
+
+[connection signal="mouse_entered" from="VisualsContainer/Visuals/CardViewport" to="." method="_on_display_mouse_entered"]
+[connection signal="mouse_exited" from="VisualsContainer/Visuals/CardViewport" to="." method="_on_display_mouse_exited"]

@@ -87,17 +87,12 @@ func _execute_scheduled_transition(id: int) -> void:
 @export var fill_icons_on_start: bool = false
 @export var end_of_actions_delay: float = 2.0
 
-# Particle used for opponent pass feedback (optional: set in Inspector)
+# Dust effect for pass button feedback
 @export_group("Pass Effect")
-@export var pass_particle_texture: Texture2D
-@export var pass_particle_amount: int = 28
-@export var pass_particle_lifetime: float = 0.9
-@export var pass_particle_speed: float = 260.0
-@export var pass_particle_spread_degrees: float = 180.0
-@export var pass_particle_gravity: Vector3 = Vector3(0, 98, 0)
-@export var pass_particle_scale_min: float = 0.1
-@export var pass_particle_scale_max: float = 0.3
-@export var pass_particle_color: Color = Color.WHITE
+@export var dust_particle_count: int = 8
+@export var dust_particle_size: float = 4.0
+@export var dust_lifetime: float = 0.5
+@export var dust_color: Color = Color(0.9, 0.9, 0.8, 0.8)
 
 func _ready() -> void:
 	pass
@@ -155,6 +150,9 @@ func _ready() -> void:
 				_force_set_action_icons_fill(ppanel, 0.0)
 			if oppanel:
 				_force_set_action_icons_fill(oppanel, 0.0)
+
+	# Ensure UI opacity is synced after ready (defers to allow managers to register)
+	call_deferred("_update_ui_opacity")
 
 ## Called by RoundManager or GameManager to start turn management
 func start_turn_management(starting_player: int) -> void:
@@ -262,23 +260,88 @@ func next_turn() -> void:
 ## Update UI opacity based on whose turn it is
 func _update_ui_opacity() -> void:
 	pass
-	# print("TurnManager: Updating UI opacity - Player turn:", is_player_turn)
+	print("TurnManager: _update_ui_opacity called")
+	# Debug: show key state
+	print("  is_player_turn=", is_player_turn, " player_actions=", player_actions_remaining, " opponent_actions=", opponent_actions_remaining)
 
-	# Decide opacities for each side
+	# Check if the game state tray is active. Prefer explicit flag on UIManager to avoid timing issues.
+	var tray_visible = false
+	
+	# Resolve ui_manager if not cached
+	if not ui_manager and game_manager and game_manager.has_method("get_manager"):
+		ui_manager = game_manager.get_manager("UIManager")
+	
+	if ui_manager:
+		if "tray_active" in ui_manager:
+			tray_visible = bool(ui_manager.tray_active)
+			print("  DEBUG: ui_manager.tray_active=", ui_manager.tray_active)
+		elif ui_manager.game_state_tray:
+			tray_visible = ui_manager.game_state_tray.visible
+			print("  DEBUG: using game_state_tray.visible=", tray_visible)
+	else:
+		print("  DEBUG: ui_manager is null (trying direct lookup)")
+		# Try direct node lookup as fallback
+		var ui_mgr = get_node_or_null("/root/main/Managers/UIManager")
+		if not ui_mgr:
+			ui_mgr = get_node_or_null("/root/GameManager/UIManager")
+		if ui_mgr and "tray_active" in ui_mgr:
+			tray_visible = bool(ui_mgr.tray_active)
+			print("  DEBUG: found UIManager via direct lookup, tray_active=", ui_mgr.tray_active)
+	
+	# If tray is visible, both sides should be faded equally
+	if tray_visible:
+		print("  tray is visible -> forcing both sides to inactive opacity=", inactive_player_opacity)
+		_set_side_ui_opacity("PlayerUI", inactive_player_opacity)
+		_set_side_ui_opacity("OpponentUI", inactive_player_opacity)
+		
+		# Also clear action icons when tray is showing
+		var base_path = "/root/main/FrontLayerUI/UIPanel/PanelBG/VBoxContainer/TurnEconomy/"
+		var ppanel = get_node_or_null(base_path + "PlayerUI")
+		var oppanel = get_node_or_null(base_path + "OpponentUI")
+		if ppanel:
+			_force_set_action_icons_fill(ppanel, 0.0)
+			print("  cleared player action icons")
+		if oppanel:
+			_force_set_action_icons_fill(oppanel, 0.0)
+			print("  cleared opponent action icons")
+		
+		return
+	else:
+		print("  tray NOT visible -> using normal turn-based opacity")
+	
+	# Normal turn-based opacity when tray is not showing
 	var player_opacity = active_player_opacity if is_player_turn else inactive_player_opacity
 	var opponent_opacity = active_player_opacity if not is_player_turn else inactive_player_opacity
+	
+	# Override: if either side has 0 actions, fade them to inactive opacity regardless of whose turn it is
+	if player_actions_remaining == 0:
+		player_opacity = inactive_player_opacity
+	if opponent_actions_remaining == 0:
+		opponent_opacity = inactive_player_opacity
 
 	# Also inform UIManager (if present) for immediate effect
 	if ui_manager and ui_manager.has_method("set_active_player"):
-		pass
 		# print("TurnManager: calling ui_manager.set_active_player(", is_player_turn, ")")
 		ui_manager.set_active_player(is_player_turn)
 
+	print("  applying opacities -> player:", player_opacity, " opponent:", opponent_opacity)
 	_set_side_ui_opacity("PlayerUI", player_opacity)
 	_set_side_ui_opacity("OpponentUI", opponent_opacity)
 
 ## Update the action UI (icons + labels) for both sides
 func _update_action_ui() -> void:
+	# If tray is active, don't update action UI (icons should stay empty)
+	# Check tray_active flag on UIManager
+	var tray_is_active = false
+	if not ui_manager and game_manager and game_manager.has_method("get_manager"):
+		ui_manager = game_manager.get_manager("UIManager")
+	if ui_manager and "tray_active" in ui_manager:
+		tray_is_active = bool(ui_manager.tray_active)
+	
+	if tray_is_active:
+		print("TurnManager: _update_action_ui() skipped (tray is active)")
+		return
+	
 	# Player
 	_set_action_ui("PlayerUI", player_actions_remaining, actions_per_turn)
 	# Opponent
@@ -542,51 +605,66 @@ func _trigger_opponent_pass_effects() -> void:
 		tween.tween_property(pass_button, "modulate", Color.GRAY, 0.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 		tween.tween_property(pass_button, "modulate", Color.WHITE, 0.2).set_delay(0.1)
 
-		# Spawn a one-shot GPUParticles2D burst centered on the pass button
+		# Get button center position
 		var center_pos = Vector2.ZERO
+		var button_size = Vector2.ZERO
 		if pass_button is Control and pass_button.has_method("get_global_rect"):
 			var gr = pass_button.get_global_rect()
 			center_pos = gr.position + gr.size * 0.5
+			button_size = gr.size
 		elif "global_position" in pass_button:
 			center_pos = pass_button.global_position
+			if "size" in pass_button:
+				button_size = pass_button.size
 		else:
 			if "rect_global_position" in pass_button and "rect_size" in pass_button:
 				center_pos = pass_button.rect_global_position + pass_button.rect_size * 0.5
-
-		var particles = GPUParticles2D.new()
-		particles.one_shot = true
-		particles.amount = pass_particle_amount
-		particles.lifetime = pass_particle_lifetime
-		particles.emitting = true
-
-		# Configure a basic ProcessMaterial for velocity/angle
-		var pm = ParticleProcessMaterial.new()
-		pm.direction = Vector3(0, -1, 0)
-		pm.spread = deg_to_rad(pass_particle_spread_degrees)
-		pm.initial_velocity_min = pass_particle_speed
-		pm.initial_velocity_max = pass_particle_speed
-		pm.gravity = pass_particle_gravity
-		pm.scale_min = pass_particle_scale_min
-		pm.scale_max = pass_particle_scale_max
-		pm.color = pass_particle_color
-		particles.process_material = pm
-
-		if pass_particle_texture:
-			particles.texture = pass_particle_texture
-
-		particles.position = center_pos
+				button_size = pass_button.rect_size
 		
-		var front_layer = get_node_or_null("/root/main/FrontLayerUI")
-		if front_layer:
-			front_layer.add_child(particles)
-		else:
-			add_child(particles)
-
-		var free_delay = pass_particle_lifetime + 0.2
-		var particle_timer = get_tree().create_timer(free_delay)
-		await particle_timer.timeout
-		if is_instance_valid(particles):
-			particles.queue_free()
+		# Calculate corners relative to center
+		var half_width = button_size.x * 0.5
+		var half_height = button_size.y * 0.5
+		var corners = [
+			Vector2(-half_width, -half_height),  # Top-left
+			Vector2(half_width, -half_height),   # Top-right
+			Vector2(-half_width, half_height),   # Bottom-left
+			Vector2(half_width, half_height)     # Bottom-right
+		]
+		
+		# Create dust particles at each corner
+		for corner in corners:
+			for i in range(2):  # 2 particles per corner
+				var dust = ColorRect.new()
+				
+				# Try to add to FrontLayerUI if available, otherwise use current node
+				var front_layer = get_node_or_null("/root/main/FrontLayerUI")
+				if front_layer:
+					front_layer.add_child(dust)
+				else:
+					add_child(dust)
+				
+				# Setup dust particle
+				dust.size = Vector2(dust_particle_size, dust_particle_size)
+				dust.color = dust_color
+				dust.global_position = center_pos + corner
+				dust.z_index = 10
+				
+				# Animate dust particle
+				var dust_tween = create_tween()
+				dust_tween.set_parallel(true)
+				
+				# Random direction outward from corner
+				var angle = randf_range(-PI/4, PI/4) + atan2(corner.y, corner.x)
+				var direction = Vector2(cos(angle), sin(angle))
+				var distance = randf_range(30, 60)
+				var target_pos = dust.global_position + direction * distance
+				
+				# Animate position and fade
+				dust_tween.tween_property(dust, "global_position", target_pos, dust_lifetime)
+				dust_tween.tween_property(dust, "modulate:a", 0.0, dust_lifetime)
+				
+				# Clean up particle when done
+				dust_tween.finished.connect(func(): dust.queue_free())
 
 	var info_manager = get_node_or_null("/root/main/Managers/InfoScreenManager")
 	if info_manager and info_manager.has_method("show_opponent_pass_commentary"):

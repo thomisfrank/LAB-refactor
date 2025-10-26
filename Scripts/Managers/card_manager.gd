@@ -41,6 +41,10 @@ var hand_tween: Tween = null
 @export var flicker_final_pause: float = 0.04
 
 func _ready():
+	var game_manager = get_node_or_null("/root/GameManager")
+	if game_manager:
+		game_manager.register_manager("CardManager", self)
+
 	_initialize_deck()
 
 func _initialize_deck():
@@ -190,15 +194,15 @@ func draw_cards(number: int, start_pos: Vector2, _hand_center_pos: Vector2, face
 		t.parallel().tween_property(card_instance, "scale", card_size / base_card_size, t2)
 
 		# subtle shadow squash
-		if card_instance.has_node("Visuals/Shadow"):
-			var shadow_node = card_instance.get_node("Visuals/Shadow")
+		if card_instance.has_node("VisualsContainer/Visuals/Shadow"):
+			var shadow_node = card_instance.get_node("VisualsContainer/Visuals/Shadow")
 			t.parallel().tween_property(shadow_node, "scale", Vector2(0.9, 0.9), t1)
 			t.parallel().tween_property(shadow_node, "scale", Vector2(1.1, 1.1), t2)
 
 		# await tween completion
 		await t.finished
 
-		# Card is now at slot position
+	# Card is now at slot position
 	# card positioned
 
 		# Arrival pop animation
@@ -348,12 +352,16 @@ func discard_all_hands() -> void:
 	var opponent_cards = get_hand_cards(false)
 	var all_cards = []
 	for c in player_cards:
-		all_cards.append(c)
+		if is_instance_valid(c) and c.is_inside_tree():
+			all_cards.append(c)
 	for c in opponent_cards:
-		all_cards.append(c)
+		if is_instance_valid(c) and c.is_inside_tree():
+			all_cards.append(c)
 
 	if all_cards.size() == 0:
 		return
+
+	print("[CardManager] discard_all_hands: Starting discard of %d cards" % all_cards.size())
 
 	var main_node = get_node_or_null("/root/main")
 	var discard_node = null
@@ -373,116 +381,126 @@ func discard_all_hands() -> void:
 	# Stagger times between cards (used by the arc fallback)
 	var move_duration = 0.36
 
-	# Launch disintegration for all cards that support it, and start arc
-	# animations in parallel for cards that don't. Then wait until all
-	# cards have been handed off to the discard pile (or timeout).
+	# Get the disintegration shader from drop zones
 	var dz_shader = null
 	for zone in get_tree().get_nodes_in_group("drop_zones"):
 		if zone and zone.has_method("on_card_dropped") and "disintegration_shader" in zone:
 			dz_shader = zone.disintegration_shader
 			break
 
-	var anim_tweens: Array = []
-	var disintegrating_cards: Array = []
+	# Track completion: we'll wait for signals from each card
+	var cards_to_complete = all_cards.size()
+	var cards_completed = 0
+	
+	# Callback for when a card completes its discard animation
+	var on_card_complete = func():
+		cards_completed += 1
+		print("[CardManager] Card discard complete: %d/%d" % [cards_completed, cards_to_complete])
 
 	var scene_root = get_tree().get_current_scene()
 
+	# Process each card
 	for card in all_cards:
-		if not is_instance_valid(card):
+		if not is_instance_valid(card) or not card.is_inside_tree():
+			cards_to_complete -= 1
 			continue
 
-		# NOTE: don't reparent cards that will disintegrate in-place — reparenting
-		# can change their transform and cause visible jumps. Only reparent when
-		# we need to run the fallback arc animation (below).
-
-		if card.has_method("apply_disintegration"):
-			# Trigger disintegration simultaneously
+		# Connect to the card's completion signal
+		if card.has_signal("discard_animation_complete"):
+			if not card.is_connected("discard_animation_complete", on_card_complete):
+				card.discard_animation_complete.connect(on_card_complete, CONNECT_ONE_SHOT)
+		
+		if card.has_method("apply_disintegration") and dz_shader:
+			# Trigger disintegration - card will emit signal when done
 			card.apply_disintegration(dz_shader, 0.0, 1.0, 0.9, Tween.EASE_IN, Tween.TRANS_SINE)
-			disintegrating_cards.append(card)
 		else:
-			# For fallback arc animations we need the card to be under the scene
-			# root so global_position tweens are stable — reparent here.
-			if scene_root and card.get_parent() != scene_root:
-				card.get_parent().remove_child(card)
-				scene_root.add_child(card)
-			# Fallback: animate arc-to-discard in parallel
+			# Fallback: animate arc-to-discard
+			# Don't reparent yet - keep card in current parent during animation
 			var spawn_pos = card.global_position
 			var mid_pos = Vector2(lerp(spawn_pos.x, target_global_pos.x, 0.5), lerp(spawn_pos.y, target_global_pos.y, 0.5) - 120)
 			var t = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 			t.tween_method(func(progress):
-				var p1 = spawn_pos.lerp(mid_pos, progress)
-				var p2 = mid_pos.lerp(target_global_pos, progress)
 				if is_instance_valid(card):
-					card.global_position = p1.lerp(p2, progress)
+					card.global_position = spawn_pos.lerp(mid_pos, progress).lerp(mid_pos.lerp(target_global_pos, progress), progress)
 			, 0.0, 1.0, move_duration)
 			if card is CanvasItem:
 				t.parallel().tween_property(card, "scale", card.scale * 0.92, move_duration * 0.6)
 				t.parallel().tween_property(card, "rotation", card.rotation + deg_to_rad(6.0), move_duration)
-			anim_tweens.append({"tween": t, "card": card})
-
-	# Wait for all non-disintegration tweens to finish, then hand off those cards
-	for entry in anim_tweens:
-		var tw = entry["tween"]
-		var c = entry["card"]
-		await tw.finished
-		if main_node and main_node.has_method("add_to_discard_pile") and is_instance_valid(c):
-			main_node.add_to_discard_pile(c)
-		elif discard_node and discard_node.has_method("add_card") and is_instance_valid(c):
-			discard_node.add_card(c)
-		else:
-			if is_instance_valid(c):
-				c.queue_free()
-
-	# Now wait for disintegrating cards to be handed to the discard node
-	var waited_total = 0.0
-	var poll_dt = 0.05
-	var timeout_total = 6.0
-	if disintegrating_cards.size() > 0:
-		while waited_total < timeout_total:
-			var all_done = true
-			for dcard in disintegrating_cards:
-				if not is_instance_valid(dcard):
-					continue
-				if discard_node:
-					if dcard.get_parent() != discard_node:
-						all_done = false
-						break
+			
+			# When tween finishes, move to discard
+			t.tween_callback(func():
+				if main_node and main_node.has_method("add_to_discard_pile") and is_instance_valid(card):
+					main_node.add_to_discard_pile(card)
+				elif discard_node and discard_node.has_method("add_card") and is_instance_valid(card):
+					discard_node.add_card(card)
 				else:
-					# If there's no discard node to poll, assume the card will free
-					# itself or be reparented by the card logic; just wait a short time
-					all_done = false
-					break
-			if all_done:
-				break
-			await get_tree().create_timer(poll_dt).timeout
-			waited_total += poll_dt
-		# If no discard_node, give a small grace period to let cards finish
-		if not discard_node:
-			await get_tree().create_timer(0.9).timeout
+					if is_instance_valid(card):
+						card.queue_free()
+				# Mark this card as complete
+				on_card_complete.call()
+			)
 
-	# Finally, ensure both hands are relaid out
-	relayout_hand(true)
-	relayout_hand(false)
+	# Wait for all cards to complete (with timeout for safety)
+	var wait_time = 0.0
+	var max_wait = 8.0
+	var poll_interval = 0.05
+	
+	while cards_completed < cards_to_complete and wait_time < max_wait:
+		await get_tree().create_timer(poll_interval).timeout
+		wait_time += poll_interval
+	
+	if wait_time >= max_wait:
+		push_warning("card_manager: discard_all_hands timed out waiting for cards to complete")
+	else:
+		print("[CardManager] All %d cards discarded successfully in %.2f seconds" % [cards_completed, wait_time])
+	
+	# Small delay to let final animations settle
+	await get_tree().create_timer(0.1).timeout
+	
+	# Finally, relayout both hands to clean up any stragglers
+	await relayout_hand(true)
+	await relayout_hand(false)
 
 
 func relayout_hand(is_player: bool = true) -> void:
 	"""Reposition existing cards to fill gaps using HandSlots."""
 	
-	# relayout_hand called
+	print("[CardManager] relayout_hand called for %s" % ("player" if is_player else "opponent"))
 
 	# Collect cards for the specified hand
 	var cards: Array = []
+	
+	# First, try to find cards in hand slots
+	var hand_slots_path = "../HandSlots" if is_player else "../OpponentHandSlots"
+	var hand_slots_root = get_node_or_null(hand_slots_path)
+	
+	if hand_slots_root:
+		print("[CardManager] Found hand_slots_root, collecting cards from slots...")
+		# Collect all cards from slots
+		for slot in hand_slots_root.get_children():
+			for card in slot.get_children():
+				if card and card.has_method("set_home_position"):
+					cards.append(card)
+					print("[CardManager]   Found card in slot: %s" % card.name)
+	
+	# Also check CardManager's direct children (cards from draw_cards may still be here)
+	print("[CardManager] Checking CardManager children for cards...")
 	for child in get_children():
-		if child and child.has_method("set_home_position") and child.has_method("is_inside_tree"):
+		if child and child.has_method("set_home_position"):
 			# Filter by player/opponent flag
 			if "is_player_card" in child:
 				if is_player and not child.is_player_card:
 					continue
 				if not is_player and child.is_player_card:
 					continue
+			# Skip cards that are in the play area (drop zone) - they're being discarded
+			if "is_in_play_area" in child and child.is_in_play_area:
+				print("[CardManager]   Skipping card in play area: %s" % child.name)
+				continue
 			cards.append(child)
+			print("[CardManager]   Found card in CardManager: %s" % child.name)
 	
-	# found cards to relayout
+	print("[CardManager] Total cards found to relayout: %d" % cards.size())
 
 	# Sort by card_index if available to preserve intended order
 	cards.sort_custom(Callable(self, "_sort_by_card_index"))
@@ -490,28 +508,58 @@ func relayout_hand(is_player: bool = true) -> void:
 	# Get slot positions for the appropriate hand
 	var slots = _get_hand_slot_positions(is_player)
 	if slots.size() == 0:
-		# No hand slots: nothing to do
+		print("[CardManager] ERROR: No hand slots found!")
 		return
+	
+	print("[CardManager] Available slots: %d" % slots.size())
 
-	# Create a staggered tween to move cards into their slot positions
+	# Reparent cards to fill slots sequentially and update their positions
+	var slot_index = 0
 	for i in range(cards.size()):
 		var card = cards[i]
 		if not is_instance_valid(card):
 			continue
+		
 		# assign new index
 		if "card_index" in card:
 			card.card_index = i
-		# choose slot (clamp)
-		var slot = slots[i] if i < slots.size() else slots[slots.size() - 1]
-		# tween card to slot
+		
+		# Get target slot
+		var target_slot_node = null
+		if hand_slots_root and slot_index < hand_slots_root.get_child_count():
+			target_slot_node = hand_slots_root.get_child(slot_index)
+		
+		# Reparent card to new slot if needed
+		if target_slot_node and card.get_parent() != target_slot_node:
+			var old_global_pos = card.global_position
+			var old_rotation = card.rotation
+			card.get_parent().remove_child(card)
+			target_slot_node.add_child(card)
+			card.global_position = old_global_pos
+			card.rotation = old_rotation
+		
+		# Get slot position
+		var slot = slots[slot_index] if slot_index < slots.size() else slots[slots.size() - 1]
+		slot_index += 1
+		
+		# tween card to slot position and rotation
 		var t = create_tween()
 		t.tween_property(card, "global_position", slot["global_pos"], relayout_duration).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 		t.parallel().tween_property(card, "rotation", slot["rot"], relayout_duration)
-		# set home when tween finishes
-		_set_home_after_delay(card, slot["global_pos"], slot["rot"], relayout_duration)
-		# small stagger between each card start
-		if relayout_stagger > 0:
-			# wait a tiny bit before starting next card to create a pleasing cascade
+		
+		# After tween, set local position and rotation to zero (since it's parented to slot)
+		t.tween_callback(func():
+			if is_instance_valid(card):
+				card.position = Vector2.ZERO
+				card.rotation = 0.0
+				if card.has_method("set_home_position"):
+					# Card is parented to slot, so home rotation should be 0 (local to slot)
+					card.set_home_position(slot["global_pos"], 0.0)
+		)
+		
+		# Small stagger between each card start (non-blocking, using tween delay instead of await)
+		if relayout_stagger > 0 and i < cards.size() - 1:
+			# Add a small delay before the next card's tween starts
 			await get_tree().create_timer(relayout_stagger).timeout
 
 
@@ -523,3 +571,116 @@ func _sort_by_card_index(a, b) -> int:
 	if "card_index" in b:
 		bi = int(b.card_index)
 	return ai - bi
+
+func draw_single_card_to_hand(is_player: bool = true) -> Node:
+	emit_signal("draw_started")
+
+	if not _ensure_card_scene():
+		return null
+
+	# 1. Find an empty hand slot
+	var hand_slots_path = "../HandSlots" if is_player else "../OpponentHandSlots"
+	var hand_slots_root = get_node_or_null(hand_slots_path)
+	if not hand_slots_root:
+		push_error("[CardManager] ERROR: HandSlots not found at path '%s'" % hand_slots_path)
+		return null
+
+	var target_slot = null
+	for slot in hand_slots_root.get_children():
+		if slot.get_child_count() == 0:
+			target_slot = slot
+			break
+	
+	if not target_slot:
+		push_warning("[CardManager] No empty hand slot found for new card.")
+		if hand_slots_root.get_child_count() > 0:
+			target_slot = hand_slots_root.get_child(hand_slots_root.get_child_count() - 1)
+		else:
+			push_error("[CardManager] No hand slots exist at all.")
+			return null
+
+	# 2. Instantiate and set up the card
+	var card_instance: Node2D = card_scene.instantiate()
+	
+	if draw_index >= deck.size():
+		push_warning("[CardManager] WARNING: No more cards in deck!")
+		card_instance.queue_free()
+		return null
+	
+	if card_instance.has_method("set_card_data"):
+		var card_name = deck[draw_index]
+		card_instance.set_card_data(card_name)
+		draw_index += 1
+		_update_deck_counter()
+	else:
+		push_error("[CardManager] Card scene is missing set_card_data method.")
+		card_instance.queue_free()
+		return null
+
+	add_child(card_instance)
+
+	# 3. Animate the card from the deck to the hand slot
+	var deck_node = get_node_or_null("/root/main/Parallax/Deck")
+	var spawn_pos = global_position
+	if deck_node:
+		spawn_pos = deck_node.global_position + Vector2(0, -20)
+
+	card_instance.global_position = spawn_pos
+	card_instance.rotation = 0.0 # Start rotation at 0
+	if card_instance is CanvasItem:
+		card_instance.z_index = 100
+
+	# Set initial scale, smaller than final size
+	var base_card_size = Vector2(500, 700)
+	card_instance.scale = (card_size / base_card_size) * 0.9
+
+	var slot_global_pos = target_slot.global_position
+	var slot_global_rot = target_slot.global_rotation
+
+	var t = create_tween()
+	t.set_parallel(true)
+	t.tween_property(card_instance, "global_position", slot_global_pos, draw_base_duration).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	t.tween_property(card_instance, "rotation", slot_global_rot, draw_base_duration)
+	# Tween scale to final size
+	t.tween_property(card_instance, "scale", card_size / base_card_size, draw_base_duration * 0.8).set_ease(Tween.EASE_OUT)
+	
+	await t.finished
+
+	# Arrival pop animation
+	var pop_t = create_tween()
+	pop_t.tween_property(card_instance, "scale", (card_size / base_card_size) * 1.05, 0.08).set_ease(Tween.EASE_OUT)
+	pop_t.tween_property(card_instance, "scale", card_size / base_card_size, 0.12).set_delay(0.08).set_ease(Tween.EASE_IN)
+	await pop_t.finished
+
+	# 4. Finalize the card's state and parenting
+	if is_instance_valid(card_instance):
+		remove_child(card_instance)
+		target_slot.add_child(card_instance)
+		card_instance.position = Vector2.ZERO
+		card_instance.rotation = 0.0  # Reset rotation to be relative to parent slot
+
+		if card_instance.has_method("set_home_position"):
+			# Card is parented to slot, so home rotation should be 0 (local to slot)
+			card_instance.set_home_position(slot_global_pos, 0.0)
+		
+		if "is_player_card" in card_instance:
+			card_instance.is_player_card = is_player
+
+		if is_player and card_instance.has_method("flip_card"):
+			if "start_face_up" in card_instance:
+				card_instance.start_face_up = false
+				if card_instance.has_method("apply_start_face_up"):
+					card_instance.apply_start_face_up()
+			card_instance.flip_card()
+
+		# Wait a tiny bit for animations to settle before relayout
+		await get_tree().create_timer(0.15).timeout
+
+		# Relayout the hand after drawing to fill gaps and position the new card
+		print("[CardManager] draw_single_card_to_hand: Calling relayout_hand for %s" % ("player" if is_player else "opponent"))
+		await relayout_hand(is_player)
+		print("[CardManager] draw_single_card_to_hand: Relayout complete")
+
+		return card_instance
+	
+	return null

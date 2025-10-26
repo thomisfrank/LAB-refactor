@@ -55,9 +55,6 @@ func add_to_discard_pile(card):
 	# Delegate to the discard pile's add_card method
 	discard_pile_node.add_card(card)
 
-	# After moving a card to discard, relayout both hands to fill gaps
-	if parallax_node:
-		var cm = parallax_node.get_node_or_null("CardManager")
-		if cm and cm.has_method("relayout_hand"):
-			cm.relayout_hand(true)  # Relayout player hand
-			cm.relayout_hand(false)  # Relayout opponent hand
+	# Note: We don't relayout here anymore because:
+	# - Effect cards (like Draw) handle their own relayout after their effect completes
+	# - This avoids duplicate relayouts

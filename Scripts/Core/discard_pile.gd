@@ -59,8 +59,8 @@ func add_card(card: Node) -> void:
 		card.set("is_mouse_over", false)
 		card.set("is_dragging", false)
 	# Disable mouse filter on the display container to prevent hover
-	if card.has_node("Visuals/CardViewport"):
-		var display_container = card.get_node("Visuals/CardViewport")
+	if card.has_node("VisualsContainer/Visuals/CardViewport"):
+		var display_container = card.get_node("VisualsContainer/Visuals/CardViewport")
 		display_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	# Ensure the card face is visible in the discard pile (opponent cards should reveal)
@@ -70,16 +70,16 @@ func add_card(card: Node) -> void:
 		card.apply_start_face_up()
 	else:
 		# Direct node toggle fallback
-		if card.has_node("Visuals/CardViewport/SubViewport/Card/CardFace") and card.has_node("Visuals/CardViewport/SubViewport/Card/CardBack"):
-			var face_node = card.get_node("Visuals/CardViewport/SubViewport/Card/CardFace")
-			var back_node = card.get_node("Visuals/CardViewport/SubViewport/Card/CardBack")
+		if card.has_node("VisualsContainer/Visuals/CardViewport/SubViewport/Card/CardFace") and card.has_node("VisualsContainer/Visuals/CardViewport/SubViewport/Card/CardBack"):
+			var face_node = card.get_node("VisualsContainer/Visuals/CardViewport/SubViewport/Card/CardFace")
+			var back_node = card.get_node("VisualsContainer/Visuals/CardViewport/SubViewport/Card/CardBack")
 			if face_node and back_node:
 				face_node.show()
 				back_node.hide()
 
 	# Reset the visuals rotation to 0 (in case opponent cards have rotated visuals)
-	if card.has_node("Visuals"):
-		var visuals = card.get_node("Visuals")
+	if card.has_node("VisualsContainer/Visuals"):
+		var visuals = card.get_node("VisualsContainer/Visuals")
 		visuals.rotation = 0.0
 
 	# Randomize rotation
@@ -101,13 +101,15 @@ func add_card(card: Node) -> void:
 	card.position = Vector2(random_offset_x, random_offset_y)
 
 	# Pop-up arrival animation with flash
-	if card.has_node("Visuals"):
-		var visuals = card.get_node("Visuals")
+	if card.has_node("VisualsContainer/Visuals"):
+		var visuals = card.get_node("VisualsContainer/Visuals")
 		
-		# Reset the display container material (remove disintegration shader)
-		if card.has_node("Visuals/CardViewport"):
-			var display_container = card.get_node("Visuals/CardViewport")
-			display_container.material = null  # Clear the shader
+		# Clear any disintegration shader that might be lingering
+		if card.has_node("VisualsContainer/Visuals/CardViewport"):
+			var display_container = card.get_node("VisualsContainer/Visuals/CardViewport")
+			# Only clear if there's actually a shader material (don't interfere with normal cards)
+			if display_container.material and display_container.material is ShaderMaterial:
+				display_container.material = null
 		
 		visuals.scale = Vector2(pop_start_scale, pop_start_scale)  # Start small
 		visuals.modulate = Color(flash_brightness, flash_brightness, flash_brightness, 0.0)  # Start invisible with bright flash (overbright white)
