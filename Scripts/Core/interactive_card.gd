@@ -1,9 +1,7 @@
 extends Node2D
 
-# --- Signals ---
 signal discard_animation_complete
 
-# --- Node References & Exports ---
 @onready var visuals = $VisualsContainer/Visuals
 @onready var shadow = $VisualsContainer/Visuals/Shadow
 @onready var display_container: SubViewportContainer = $VisualsContainer/Visuals/CardViewport
@@ -13,15 +11,10 @@ signal discard_animation_complete
 @onready var lock_icon = $VisualsContainer/LockIcon
 @onready var description = $VisualsContainer/description
 
+@export var start_face_up: bool = true
+var card_name: String = ""
 
-# --- Card Appearance ---
-@export var start_face_up: bool = true  # If true, starts showing card face; if false, shows back
-var card_name: String = ""  # Set by card_manager when instantiating
-
-# --- Card Ownership ---
-@export var is_player_card: bool = true  # If true, player can drag this card; if false, only hover effects
-
-# --- Interactions ---
+@export var is_player_card: bool = true
 @export_category("Interactions")
 @export var max_tilt_angle: float = 20.0
 @export var hover_scale: float = 1.1
@@ -62,36 +55,26 @@ var card_name: String = ""  # Set by card_manager when instantiating
 @export var flip_duration: float = 0.25  # Duration of each half of the flip
 @export var flip_ease: Tween.EaseType = Tween.EASE_IN_OUT
 @export var flip_trans: Tween.TransitionType = Tween.TRANS_SINE
-@export var flip_pop_scale: float = 1.05  # How much to scale up after flip
-@export var flip_pop_duration: float = 0.3  # How long the pop animation takes
+@export var flip_pop_scale: float = 1.05
+@export var flip_pop_duration: float = 0.3
 
-
-# --- State Variables ---
 var is_mouse_over: bool = false
 var is_dragging: bool = false
 var is_in_play_area: bool = false
-var is_locked: bool = false  # If true, card cannot be dragged
+var is_locked: bool = false
 var lock_rotation: bool = false
 var hover_tween: Tween
 var prev_global_position: Vector2 = Vector2.ZERO
 var drag_offset: Vector2 = Vector2.ZERO
-var wobble_time: float = 0.0 # For the oscillator
-var card_index: int = 0  # Index of this card in the hand (for wave effect)
+var wobble_time: float = 0.0
+var card_index: int = 0
 
-# Hover state tracking
 var original_z_index: int = 0
 var hover_y_offset: float = 0.0
-var description_timer: float = 0.0  # Tracks how long we've been hovering
+var description_timer: float = 0.0
 
-# --- Debug Variables ---
-var debug_frame_counter: int = 0
-@export_group("Debug")
-@export var debug_print_interval: int = 60  # Print every N frames (60 = once per second at 60fps)
-@export var enable_position_debug: bool = false  # Toggle position debugging
-
-# --- Snap back variables ---
-var home_position: Vector2 = Vector2.ZERO  # The card's designated position in hand
-var home_rotation: float = 0.0  # The card's designated rotation in hand
+var home_position: Vector2 = Vector2.ZERO
+var home_rotation: float = 0.0
 var snap_back_tween: Tween
 
 @export_category("Per-card Disintegration Override")
@@ -104,8 +87,6 @@ var snap_back_tween: Tween
 @export var override_shader_target_progress: float = 1.0
 @export var override_shader_tween_ease: Tween.EaseType = Tween.EASE_IN
 @export var override_shader_tween_trans: Tween.TransitionType = Tween.TRANS_SINE
-
-# --- Godot Functions ---
 
 func _ready() -> void:
 	pass
@@ -215,10 +196,8 @@ func set_card_data(data_name: String) -> void:
 			_mf_name = "PASS"
 		elif mf == Control.MOUSE_FILTER_IGNORE:
 			_mf_name = "IGNORE"
-		# display_container mouse filter info (suppressed)
 		if display_container.has_method("get_rect"):
 			var _r = display_container.get_rect()
-		# debug info available but suppressed in production
 
 func _process(delta: float) -> void:
 	# Run all our per-frame logic
@@ -228,17 +207,6 @@ func _process(delta: float) -> void:
 	handle_wobble(delta)
 	handle_hover_offset()
 	handle_description_hover(delta)
-	
-	# Debug position tracking (every N frames)
-	if enable_position_debug:
-		debug_frame_counter += 1
-		if debug_frame_counter >= debug_print_interval:
-			debug_frame_counter = 0
-			# position debug suppressed
-	if display_container and display_container.get_rect().has_point(display_container.get_local_mouse_position()):
-		if Input.is_action_just_pressed("click"):
-			pass
-			# click inside card rect (suppressed)
 
 func flip_card():
 	var tween = create_tween().set_ease(flip_ease).set_trans(flip_trans)
@@ -246,36 +214,22 @@ func flip_card():
 	var visible_side = card_back if card_back.is_visible() else card_face
 	var hidden_side = card_face if card_back.is_visible() else card_back
 
-	# --- Part 1: First Half of Flip (Card AND Shadow together) ---
-	# Squash the visible side of the card
 	tween.tween_property(visible_side, "scale:x", 0.0, flip_duration)
-	# Squash the shadow AT THE SAME TIME
 	tween.parallel().tween_property(shadow, "scale:x", 0.0, flip_duration)
 	
-	# --- Part 2: The Swap ---
 	tween.tween_callback(func():
 		visible_side.hide()
 		hidden_side.show()
 		hidden_side.scale.x = 0.0
 	)
 	
-	# --- Part 3: Second Half of Flip (Card AND Shadow together) ---
-	# Un-squash the new side of the card
 	tween.tween_property(hidden_side, "scale:x", 1.0, flip_duration)
-	# Un-squash the shadow AT THE SAME TIME
 	tween.parallel().tween_property(shadow, "scale:x", 1.0, flip_duration)
 	
-	# --- Part 4: Pop effect after flip completes ---
-	# Scale up
 	tween.tween_property(display_container, "scale", Vector2(flip_pop_scale, flip_pop_scale), flip_pop_duration * 0.5).set_ease(Tween.EASE_OUT)
-	# Scale back down
 	tween.tween_property(display_container, "scale", Vector2.ONE, flip_pop_duration * 0.5).set_ease(Tween.EASE_IN)
 
-	# Return the tween so callers can await its completion if needed
 	return tween
-
-
-# --- Signal Handlers ---
 
 func _on_display_mouse_entered() -> void:
 	is_mouse_over = true
@@ -453,8 +407,6 @@ func set_locked(locked: bool) -> void:
 		snap_back_to_original_position()
 
 func snap_back_to_original_position() -> void:
-	# snap_back called (debug suppressed)
-	# Kill any existing snap back tween
 	if snap_back_tween and snap_back_tween.is_running():
 		snap_back_tween.kill()
 	
@@ -536,31 +488,24 @@ func handle_tilt(delta: float) -> void:
 		mat.set_shader_parameter("y_rot", lerp(current_rot_y, 0.0, delta * 5.0))
 		mat.set_shader_parameter("x_rot", lerp(current_rot_x, 0.0, delta * 5.0))
 
-# --- NEW: Wobble Function ---
 func handle_wobble(delta: float) -> void:
-	# If the card is placed in play or rotation is locked, don't wobble/modify rotation
 	if is_in_play_area or lock_rotation:
 		return
 
-	# Calculate velocity (how fast and in what direction we moved)
 	var velocity = (global_position - prev_global_position) / delta
 	var speed = velocity.length()
 	
-	# --- FIX STARTS HERE: Correct the resting rotation based on ownership ---
 	var resting_rotation_rad = 0.0
 	if not is_player_card:
-		resting_rotation_rad = PI # Opponent cards rest upside down
-	# --- FIX ENDS HERE ---
+		resting_rotation_rad = PI
 	
-	# The target rotation is the resting rotation if we're not moving
-	var target_rotation_rad = resting_rotation_rad # ISSUE 1 Fixed
+	var target_rotation_rad = resting_rotation_rad
 	
-	# If we are moving, calculate a wobble based on movement
 	if speed > 1.0 and is_dragging:
 		wobble_time += delta * wobble_speed
 		var max_angle_rad = deg_to_rad(wobble_angle)
 		var wobble_offset = sin(wobble_time) * max_angle_rad
-		target_rotation_rad = resting_rotation_rad + wobble_offset # Wobble *around* the resting rotation
+		target_rotation_rad = resting_rotation_rad + wobble_offset
 	
 	# Add idle wave effect when card is not being dragged (if enabled)
 	elif idle_wobble_enabled and not is_dragging:
@@ -664,8 +609,6 @@ func _on_animation_player_animation_finished(anim_name: String) -> void:
 	if anim_name == "digital_decay":
 		_move_to_discard_pile()
 
-
-# --- Swap Card Selection ---
 signal card_selected_for_swap(card_node: Node)
 
 var is_selectable_for_swap: bool = false
@@ -674,26 +617,20 @@ var swap_overlay: ColorRect = null
 func enable_swap_selection() -> void:
 	"""Enable this card to be selected for swapping (opponent cards only)"""
 	if is_player_card:
-		return  # Player cards cannot be selected for swap
+		return
 	
 	is_selectable_for_swap = true
 	
-	# Create red overlay if it doesn't exist
 	if not swap_overlay:
 		swap_overlay = ColorRect.new()
 		swap_overlay.name = "SwapOverlay"
-		# E74C3C in RGB is (231, 76, 60) -> normalized (0.906, 0.298, 0.235)
-		swap_overlay.color = Color(0.906, 0.298, 0.235, 0.0)  # Start transparent
+		swap_overlay.color = Color(0.906, 0.298, 0.235, 0.0)
 		swap_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# Add to visuals container so it covers the card
 		if visuals:
 			visuals.add_child(swap_overlay)
-			# Match the card viewport size
 			if display_container:
 				swap_overlay.size = display_container.size
 				swap_overlay.position = display_container.position
-	
-	print("[InteractiveCard] Swap selection enabled for card: %s" % card_name)
 
 
 func disable_swap_selection() -> void:
