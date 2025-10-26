@@ -155,6 +155,9 @@ func draw_cards(number: int, start_pos: Vector2, _hand_center_pos: Vector2, face
 				card_instance.apply_start_face_up()
 		if "is_player_card" in card_instance:
 			card_instance.is_player_card = is_player
+			# Update hand group now that is_player_card is set
+			if card_instance.has_method("update_hand_group"):
+				card_instance.update_hand_group()
 		if "card_index" in card_instance:
 			card_instance.card_index = i
 
@@ -665,6 +668,9 @@ func draw_single_card_to_hand(is_player: bool = true) -> Node:
 		
 		if "is_player_card" in card_instance:
 			card_instance.is_player_card = is_player
+			# Update hand group now that is_player_card is set
+			if card_instance.has_method("update_hand_group"):
+				card_instance.update_hand_group()
 
 		if is_player and card_instance.has_method("flip_card"):
 			if "start_face_up" in card_instance:

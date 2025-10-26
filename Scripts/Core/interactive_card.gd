@@ -139,6 +139,9 @@ func _ready() -> void:
 
 	# Also add the InteractiveCard itself to the group in case other code expects it
 	add_to_group("cards")
+	
+	# Note: Don't add to player_hand/opponent_hand groups here - that happens
+	# after is_player_card is set by CardManager (see update_hand_group() method)
 
 	prev_global_position = global_position
 	# Store original z_index for hover restoration
@@ -167,6 +170,18 @@ func apply_start_face_up() -> void:
 			card_face.hide()
 		if card_back:
 			card_back.show()
+
+func update_hand_group() -> void:
+	# Update the hand group based on current is_player_card flag
+	# Remove from both groups first
+	remove_from_group("player_hand")
+	remove_from_group("opponent_hand")
+	
+	# Add to appropriate group
+	if is_player_card:
+		add_to_group("player_hand")
+	else:
+		add_to_group("opponent_hand")
 
 func set_card_data(data_name: String) -> void:
 	card_name = data_name
@@ -266,6 +281,11 @@ func _on_display_mouse_entered() -> void:
 	is_mouse_over = true
 	description_timer = 0.0  # Reset timer when hover starts
 	
+	# Handle swap selection hover
+	if is_selectable_for_swap:
+		_on_swap_hover_enter()
+		return  # Don't do normal hover effects during swap selection
+	
 	# Show card info if face up
 	if card_face.visible and card_name != "":
 		var info_manager = get_node_or_null("/root/main/Managers/InfoScreenManager")
@@ -301,6 +321,11 @@ func _on_display_mouse_entered() -> void:
 func _on_display_mouse_exited() -> void:
 	is_mouse_over = false
 	description_timer = 0.0  # Reset timer when hover ends
+	
+	# Handle swap selection hover exit
+	if is_selectable_for_swap:
+		_on_swap_hover_exit()
+		return  # Don't do normal hover exit effects during swap selection
 	
 	# Hide description
 	if description:
@@ -338,6 +363,11 @@ func drag_logic() -> void:
 	var turn_manager = get_node_or_null("/root/main/Managers/TurnManager")
 	if not turn_manager or not turn_manager.get_is_player_turn():
 		return
+	
+	# Handle swap selection click
+	if is_mouse_over and Input.is_action_just_pressed("click") and is_selectable_for_swap:
+		_on_swap_click()
+		return  # Don't start dragging during swap selection
 	
 	# Only allow dragging for player cards that are not locked
 	if is_mouse_over and Input.is_action_just_pressed("click") and is_player_card and not is_locked:
@@ -633,3 +663,74 @@ func _move_to_discard_pile() -> void:
 func _on_animation_player_animation_finished(anim_name: String) -> void:
 	if anim_name == "digital_decay":
 		_move_to_discard_pile()
+
+
+# --- Swap Card Selection ---
+signal card_selected_for_swap(card_node: Node)
+
+var is_selectable_for_swap: bool = false
+var swap_overlay: ColorRect = null
+
+func enable_swap_selection() -> void:
+	"""Enable this card to be selected for swapping (opponent cards only)"""
+	if is_player_card:
+		return  # Player cards cannot be selected for swap
+	
+	is_selectable_for_swap = true
+	
+	# Create red overlay if it doesn't exist
+	if not swap_overlay:
+		swap_overlay = ColorRect.new()
+		swap_overlay.name = "SwapOverlay"
+		# E74C3C in RGB is (231, 76, 60) -> normalized (0.906, 0.298, 0.235)
+		swap_overlay.color = Color(0.906, 0.298, 0.235, 0.0)  # Start transparent
+		swap_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# Add to visuals container so it covers the card
+		if visuals:
+			visuals.add_child(swap_overlay)
+			# Match the card viewport size
+			if display_container:
+				swap_overlay.size = display_container.size
+				swap_overlay.position = display_container.position
+	
+	print("[InteractiveCard] Swap selection enabled for card: %s" % card_name)
+
+
+func disable_swap_selection() -> void:
+	"""Disable swap selection and remove overlay"""
+	is_selectable_for_swap = false
+	
+	if swap_overlay:
+		swap_overlay.queue_free()
+		swap_overlay = null
+	
+	print("[InteractiveCard] Swap selection disabled for card: %s" % card_name)
+
+
+func _on_swap_hover_enter() -> void:
+	"""Show red overlay when hovering during swap selection"""
+	if not is_selectable_for_swap or not swap_overlay:
+		return
+	
+	# Fade in red overlay to 40% opacity
+	var tween = create_tween()
+	tween.tween_property(swap_overlay, "color:a", 0.4, 0.2)
+
+
+func _on_swap_hover_exit() -> void:
+	"""Hide red overlay when not hovering"""
+	if not swap_overlay:
+		return
+	
+	# Fade out red overlay
+	var tween = create_tween()
+	tween.tween_property(swap_overlay, "color:a", 0.0, 0.2)
+
+
+func _on_swap_click() -> void:
+	"""Handle click during swap selection"""
+	if not is_selectable_for_swap:
+		return
+	
+	print("[InteractiveCard] Card selected for swap: %s" % card_name)
+	emit_signal("card_selected_for_swap", self)

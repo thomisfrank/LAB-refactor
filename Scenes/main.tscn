@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3 uid="uid://k78r5mnfr86l"]
+[gd_scene load_steps=26 format=3 uid="uid://k78r5mnfr86l"]
 
 [ext_resource type="Script" uid="uid://dt01fmi0ud6n0" path="res://Scripts/Core/main.gd" id="1_21xkr"]
 [ext_resource type="Script" uid="uid://diupc0dagbyfv" path="res://Scripts/Managers/card_manager.gd" id="1_bo1nx"]
@@ -18,6 +18,8 @@
 [ext_resource type="PackedScene" uid="uid://bd7r3kr8kyerm" path="res://Scenes/UI/ui_panel.tscn" id="10_d1ilt"]
 [ext_resource type="Shader" uid="uid://bj1asd5qhlhol" path="res://Scripts/Shader/smallDisplay.gdshader" id="14_h1bgf"]
 [ext_resource type="PackedScene" uid="uid://buq3dldmk3rjb" path="res://Scenes/UI/GameStateTray.tscn" id="14_k12tt"]
+[ext_resource type="Shader" uid="uid://c82r54bghps0l" path="res://Scripts/Shader/TextJitter.gdshader" id="18_hibaj"]
+[ext_resource type="FontFile" uid="uid://ckn5l8v7si46r" path="res://Assets/fonts/Jacquard12-Regular.ttf" id="19_pdsj5"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_b3802"]
 shader = ExtResource("14_h1bgf")
@@ -35,6 +37,29 @@ shader_parameter/vignette_intensity = 0.48800002318
 shader_parameter/vignette_softness = 1.78300008143262
 shader_parameter/dirt_intensity = 0.09600000456
 shader_parameter/dirt_scale = 81.2930038139175
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ee4r6"]
+shader = ExtResource("18_hibaj")
+shader_parameter/jitter_rate = 8.0
+shader_parameter/jitter_amount = 0.003
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gt3je"]
+bg_color = Color(0.08235294, 0.13725491, 0.25882354, 0.34509805)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+expand_margin_left = 10.0
+expand_margin_top = 5.0
+expand_margin_right = 10.0
+expand_margin_bottom = 5.0
+
+[sub_resource type="LabelSettings" id="LabelSettings_3pmx8"]
+font = ExtResource("19_pdsj5")
+font_size = 64
+shadow_size = 4
+shadow_color = Color(0.1883249, 0.25125608, 0.33404034, 1)
+shadow_offset = Vector2(2, 2)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_jjvhh"]
 shader = ExtResource("3_8gbba")
@@ -219,6 +244,17 @@ offset_right = 1.9999695
 offset_bottom = 0.0
 metadata/_edit_lock_ = true
 
+[node name="SelectionModeLabel" type="Label" parent="FrontLayerUI"]
+visible = false
+material = SubResource("ShaderMaterial_ee4r6")
+offset_left = 627.0
+offset_top = 713.0
+offset_right = 1575.0
+offset_bottom = 778.0
+theme_override_styles/normal = SubResource("StyleBoxFlat_gt3je")
+text = "Select a card from your opponents hand."
+label_settings = SubResource("LabelSettings_3pmx8")
+
 [node name="CRT" type="ColorRect" parent="FrontLayerUI"]
 material = SubResource("ShaderMaterial_jjvhh")
 anchors_preset = 15
@@ -233,10 +269,5 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 1, 1, 0)
 metadata/_edit_lock_ = true
-
-[node name="InteractiveCard" parent="FrontLayerUI" instance=ExtResource("1_jjgbg")]
-visible = false
-position = Vector2(1229, 619)
-scale = Vector2(0.4, 0.4)
 
 [connection signal="area_entered" from="Parallax/DropZone" to="Parallax/DropZone" method="_on_area_entered"]

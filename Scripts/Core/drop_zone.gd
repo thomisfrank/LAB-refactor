@@ -99,9 +99,6 @@ func contains_global_position(pos: Vector2) -> bool:
 
 # Called by cards when dropped in this zone
 func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = true) -> void:
-	# Show the drop zone visual briefly (especially for AI plays that don't drag)
-	_fade_in()
-	
 	var play_area_marker = $PlayAreaCardSlot/PlayAreaCardSlotMarker
 	
 	# Snap position to the play area card slot marker
@@ -146,10 +143,6 @@ func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = 
 
 	# Create dust cloud effect at card corners
 	_create_dust_effect(card_node)
-	
-	# Fade out the drop zone visual after a brief moment (for AI plays)
-	await get_tree().create_timer(0.3).timeout
-	_fade_out()
 
 	# Disable interactivity by ignoring mouse events on the card's viewport
 	var card_viewport = card_node.get_node_or_null("VisualsContainer/Visuals/CardViewport")
@@ -167,8 +160,18 @@ func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = 
 		if effects_manager and effects_manager.has_method("resolve_effect"):
 			effects_manager.resolve_effect(card_node)
 
-	# Wait before starting disintegration
-	if _disintegrate and card_node.has_method("apply_disintegration"):
+	# Check if this is a swap card - if so, don't disintegrate (the swap effect handles it)
+	var is_swap_card = false
+	var actual_card = card_node.get_node_or_null("VisualsContainer/Visuals/CardViewport/SubViewport/Card")
+	if actual_card and "card_data" in actual_card:
+		var effect_type = actual_card.card_data.get("effect_type", "")
+		if effect_type == "" or effect_type == "swap":
+			var suit = actual_card.card_data.get("suit", "")
+			if suit.to_lower() == "swap":
+				is_swap_card = true
+
+	# Wait before starting disintegration (but skip for swap cards)
+	if _disintegrate and card_node.has_method("apply_disintegration") and not is_swap_card:
 		await get_tree().create_timer(discard_delay_seconds).timeout
 		card_node.apply_disintegration(disintegration_shader, shader_start_progress, shader_target_progress, shader_tween_duration, shader_tween_ease, shader_tween_trans)
 
