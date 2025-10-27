@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=3 uid="uid://k78r5mnfr86l"]
+[gd_scene load_steps=28 format=3 uid="uid://k78r5mnfr86l"]
 
 [ext_resource type="Script" uid="uid://dt01fmi0ud6n0" path="res://Scripts/Core/main.gd" id="1_21xkr"]
 [ext_resource type="Script" uid="uid://diupc0dagbyfv" path="res://Scripts/Managers/card_manager.gd" id="1_bo1nx"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" uid="uid://eb6xrlbug6il" path="res://Scripts/Managers/EffectsManager.gd" id="7_b3802"]
 [ext_resource type="PackedScene" uid="uid://djx8niab6ivv2" path="res://Scenes/Core/discard_pile.tscn" id="7_hptm8"]
 [ext_resource type="PackedScene" uid="uid://gu4ayccbc2mf" path="res://Scenes/Core/drop_zone.tscn" id="7_ynf5e"]
+[ext_resource type="Script" uid="uid://bsn33ylxxojcc" path="res://Scripts/Managers/AudioManager.gd" id="8_ee4r6"]
 [ext_resource type="PackedScene" uid="uid://bd7r3kr8kyerm" path="res://Scenes/UI/ui_panel.tscn" id="10_d1ilt"]
 [ext_resource type="Shader" uid="uid://bj1asd5qhlhol" path="res://Scripts/Shader/smallDisplay.gdshader" id="14_h1bgf"]
 [ext_resource type="PackedScene" uid="uid://buq3dldmk3rjb" path="res://Scenes/UI/GameStateTray.tscn" id="14_k12tt"]
@@ -81,7 +82,7 @@ shader_parameter/static_noise_intensity = 0.03600000171
 shader_parameter/aberration = 4.7499999933364734e-08
 shader_parameter/brightness = 1.0
 shader_parameter/discolor = false
-shader_parameter/warp_amount = 0.09600000456
+shader_parameter/warp_amount = 0.1130000053675
 shader_parameter/clip_warp = true
 shader_parameter/vignette_intensity = 0.4
 shader_parameter/vignette_opacity = 0.0750000035625
@@ -90,6 +91,8 @@ shader_parameter/vignette_opacity = 0.0750000035625
 script = ExtResource("1_21xkr")
 cards_to_draw = 4
 discard_pile_node = NodePath("Parallax/discardPile")
+metadata/_edit_vertical_guides_ = [1324.0]
+metadata/_edit_horizontal_guides_ = [649.0]
 
 [node name="Managers" type="Node" parent="."]
 
@@ -107,7 +110,7 @@ inactive_player_opacity = 0.2
 action_pop_padding = 12.0
 action_pop_grow_time = 0.02
 end_of_actions_delay = 1.0
-dust_particle_size = 8.0
+dust_particle_size = 16.0
 
 [node name="UIManager" type="Node" parent="Managers"]
 script = ExtResource("1_uim")
@@ -127,6 +130,17 @@ typing_speed = 0.035
 
 [node name="EffectsManager" type="Node" parent="Managers"]
 script = ExtResource("7_b3802")
+
+[node name="AudioManager" type="Node" parent="Managers"]
+script = ExtResource("8_ee4r6")
+music_volume_db = -37.6
+sfx_volume_db = -15.0
+
+[node name="MusicPlayerA" type="AudioStreamPlayer" parent="Managers/AudioManager"]
+
+[node name="MusicPlayerB" type="AudioStreamPlayer" parent="Managers/AudioManager"]
+
+[node name="LoopTimer" type="Timer" parent="Managers/AudioManager"]
 
 [node name="BackLayerUI" type="CanvasLayer" parent="."]
 layer = -10

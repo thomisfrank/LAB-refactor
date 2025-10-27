@@ -24,6 +24,7 @@ var card_manager: Node
 var round_manager: Node
 var turn_manager: Node
 var ui_manager: Node
+var audio_manager: Node
 var managers: Dictionary = {}
 
 # --- Persistent Game Data ---
@@ -255,6 +256,10 @@ func register_manager(mgr_name: String, node: Node) -> void:
 		"UIManager":
 			ui_manager = node
 			# UIManager registered
+		"AudioManager":
+			audio_manager = node
+			if audio_manager and audio_manager.has_method("start_music"):
+				audio_manager.start_music()
 
 func get_manager(mgr_name: String) -> Node:
 	return managers.get(mgr_name, null)

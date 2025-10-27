@@ -101,8 +101,15 @@ func contains_global_position(pos: Vector2) -> bool:
 func on_card_dropped(card_node: Node, _snap: bool = true, _disintegrate: bool = true) -> void:
 	var play_area_marker = $PlayAreaCardSlot/PlayAreaCardSlotMarker
 	
-	# Snap position to the play area card slot marker
-	card_node.global_position = play_area_marker.global_position
+	print("[DROP_ZONE] Marker position: ", play_area_marker.global_position)
+	print("[DROP_ZONE] Card is_player_card: ", card_node.get("is_player_card"))
+	print("[DROP_ZONE] Card position before snap: ", card_node.global_position)
+	
+	# Only snap player cards to the marker - AI cards stay where they were animated to
+	if _snap and card_node.get("is_player_card") == true:
+		card_node.global_position = play_area_marker.global_position
+	
+	print("[DROP_ZONE] Card position after snap: ", card_node.global_position)
 	
 	# Set rotation to random value between -rotation_correction_degrees and +rotation_correction_degrees
 	var random_rotation_degrees = randf_range(-rotation_correction_degrees, rotation_correction_degrees)

@@ -162,6 +162,11 @@ func _execute_swap(card_node: Node) -> void:
 
 	await get_tree().create_timer(0.3).timeout
 	
+	# Check if this is an AI card - use AI logic instead
+	if not played_by_player:
+		await _execute_swap_ai(card_node)
+		return
+	
 	await _enter_swap_selection_state(card_node)
 	
 	print("[EffectsManager] Swap effect complete, about to consume action")
@@ -226,6 +231,11 @@ func _enter_swap_selection_state(swap_card_node: Node) -> void:
 
 
 func _perform_swap_animation(swap_card: Node, opponent_card: Node) -> void:
+	# Play swap sound
+	var audio_manager = get_node_or_null("/root/main/Managers/AudioManager")
+	if audio_manager and audio_manager.has_method("play_swap"):
+		audio_manager.play_swap()
+	
 	var drop_zone = get_node_or_null("/root/main/Parallax/DropZone")
 	var drop_zone_pos = Vector2.ZERO
 	if drop_zone:
@@ -348,6 +358,11 @@ func _execute_peek_hand(card_node: Node) -> void:
 
 	await get_tree().create_timer(0.3).timeout
 	
+	# Check if this is an AI card - use AI logic instead
+	if not played_by_player:
+		await _execute_peek_hand_ai(card_node)
+		return
+	
 	# Enter selection mode to pick an opponent card
 	var selected_opponent_card = await _enter_peek_hand_selection(card_node)
 	
@@ -393,6 +408,11 @@ func _execute_peek_deck(card_node: Node) -> void:
 		push_error("EffectManager: CardManager not found")
 		return
 
+	# Store who played the card
+	var played_by_player = true
+	if "is_player_card" in card_node:
+		played_by_player = card_node.is_player_card
+
 	# Check if there's a card in the deck to peek at
 	if card_manager.is_deck_depleted():
 		print("[EffectsManager] Deck is empty, cannot peek")
@@ -401,6 +421,11 @@ func _execute_peek_deck(card_node: Node) -> void:
 		return
 
 	await get_tree().create_timer(0.3).timeout
+	
+	# Check if this is an AI card - use AI logic instead
+	if not played_by_player:
+		await _execute_peek_deck_ai(card_node)
+		return
 	
 	# Get the top card data without drawing it
 	var top_card_name = card_manager.deck[card_manager.draw_index]
@@ -760,9 +785,15 @@ func _wait_for_showcase_choice(showcase: Node) -> String:
 	if button_label and button_label.text == "Draw":
 		button_action = "draw"
 	
+	var audio_manager = get_node_or_null("/root/main/Managers/AudioManager")
+	
 	var action_pressed = func():
+		if audio_manager and audio_manager.has_method("play_button_press"):
+			audio_manager.play_button_press()
 		choice_data[0] = button_action
 	var keep_pressed = func():
+		if audio_manager and audio_manager.has_method("play_button_press"):
+			audio_manager.play_button_press()
 		choice_data[0] = "keep"
 	
 	swap_draw_button.connect("pressed", action_pressed)
@@ -823,3 +854,207 @@ func _return_peek_card_to_hand(peek_card_node: Node) -> void:
 		card_manager.relayout_hand(true)
 		await get_tree().process_frame
 
+
+func _execute_peek_hand_ai(card_node: Node) -> void:
+	"""AI version of PeekHand - highlights player cards and makes a random choice."""
+	var selection_label = get_node_or_null("/root/main/FrontLayerUI/SelectionModeLabel")
+	if selection_label:
+		selection_label.text = "Opponent is peeking..."
+		selection_label.modulate = Color(1, 1, 1, 0)
+		selection_label.show()
+		
+		var tween = create_tween()
+		tween.tween_property(selection_label, "modulate:a", 1.0, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	
+	# Get all player cards
+	var player_hand = get_tree().get_nodes_in_group("player_hand")
+	if player_hand.is_empty():
+		if selection_label:
+			selection_label.hide()
+		await _return_peek_card_to_hand(card_node)
+		_consume_action_for_player(false)
+		return
+	
+	# Enable selection highlighting on all player cards
+	for card in player_hand:
+		if card.has_method("enable_swap_selection"):
+			card.enable_swap_selection()
+	
+	# Thinking time - randomly highlight cards
+	var thinking_time = randf_range(1.5, 3.0)
+	var elapsed = 0.0
+	var highlight_interval = 0.3
+	var time_since_highlight = 0.0
+	
+	while elapsed < thinking_time:
+		await get_tree().process_frame
+		var delta = get_tree().root.get_process_delta_time()
+		elapsed += delta
+		time_since_highlight += delta
+		
+		# Every interval, toggle highlight on a random card
+		if time_since_highlight >= highlight_interval:
+			time_since_highlight = 0.0
+			var random_card = player_hand[randi() % player_hand.size()]
+			# Just re-enable to refresh the highlight effect
+			if random_card.has_method("enable_swap_selection"):
+				random_card.enable_swap_selection()
+	
+	# Pick a random card to "peek" at
+	var selected_card = player_hand[randi() % player_hand.size()]
+	
+	# Hide label
+	if selection_label:
+		var label_tween = create_tween()
+		label_tween.tween_property(selection_label, "modulate:a", 0.0, 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		await label_tween.finished
+		selection_label.hide()
+	
+	# Disable selection highlighting
+	for card in player_hand:
+		if card.has_method("disable_swap_selection"):
+			card.disable_swap_selection()
+	
+	# AI makes a random choice: 50% swap, 50% keep
+	var should_swap = randf() < 0.5
+	
+	if should_swap:
+		# Perform the swap animation
+		await _perform_swap_animation(card_node, selected_card)
+		await get_tree().create_timer(0.1).timeout
+		_consume_action_for_player(false)
+		await get_tree().create_timer(0.2).timeout
+		_relock_dropzone_cards()
+	else:
+		# Keep the peek card, return it to hand
+		await _return_peek_card_to_hand(card_node)
+		_consume_action_for_player(false)
+
+func _execute_swap_ai(card_node):
+	print("EffectsManager: AI executing Swap card")
+	
+	# Show "Opponent is swapping..." label
+	var selection_label = get_node_or_null("/root/main/FrontLayerUI/SelectionModeLabel")
+	if selection_label:
+		selection_label.text = "Opponent is swapping..."
+		selection_label.modulate = Color(1, 1, 1, 0)
+		selection_label.show()
+		
+		var tween = create_tween()
+		tween.tween_property(selection_label, "modulate:a", 1.0, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	
+	# Get all player cards
+	var player_cards = get_tree().get_nodes_in_group("player_hand")
+	if player_cards.is_empty():
+		print("EffectsManager: No player cards found for AI swap")
+		_consume_action_for_player(false)
+		return
+	
+	# Enable swap selection visuals on all player cards
+	for player_card in player_cards:
+		if player_card.has_method("enable_swap_selection"):
+			player_card.enable_swap_selection()
+	
+	# Thinking time with random highlighting
+	var thinking_time = randf_range(1.0, 2.0)
+	var highlight_interval = 0.3
+	var elapsed = 0.0
+	
+	while elapsed < thinking_time:
+		# Randomly highlight a player card
+		var random_card = player_cards[randi() % player_cards.size()]
+		if random_card.has_method("highlight_for_swap"):
+			random_card.highlight_for_swap()
+		
+		await get_tree().create_timer(highlight_interval).timeout
+		elapsed += highlight_interval
+	
+	# Pick a random player card to swap with
+	var target_card = player_cards[randi() % player_cards.size()]
+	print("EffectsManager: AI chose to swap with player card: ", target_card.name)
+	
+	# Disable swap selection on all cards
+	for player_card in player_cards:
+		if player_card.has_method("disable_swap_selection"):
+			player_card.disable_swap_selection()
+	
+	# Hide selection label
+	if selection_label:
+		var hide_tween = create_tween()
+		hide_tween.tween_property(selection_label, "modulate:a", 0.0, 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		await hide_tween.finished
+		selection_label.hide()
+	
+	# Perform the swap animation
+	await _perform_swap_animation(card_node, target_card)
+	
+	# Consume action and relock cards
+	_consume_action_for_player(false)
+	
+	await get_tree().create_timer(0.2).timeout
+	_relock_dropzone_cards()
+
+
+func _execute_peek_deck_ai(card_node: Node) -> void:
+	"""AI version of PeekDeck - shows thinking message and makes a random choice."""
+	var selection_label = get_node_or_null("/root/main/FrontLayerUI/SelectionModeLabel")
+	if selection_label:
+		selection_label.text = "Opponent is peeking..."
+		selection_label.modulate = Color(1, 1, 1, 0)
+		selection_label.show()
+		
+		var tween = create_tween()
+		tween.tween_property(selection_label, "modulate:a", 1.0, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	
+	# AI thinking time
+	var thinking_time = randf_range(1.5, 3.0)
+	await get_tree().create_timer(thinking_time).timeout
+	
+	# Hide label
+	if selection_label:
+		var label_tween = create_tween()
+		label_tween.tween_property(selection_label, "modulate:a", 0.0, 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		await label_tween.finished
+		selection_label.hide()
+	
+	# AI makes a random choice: 50% draw, 50% keep
+	var should_draw = randf() < 0.5
+	
+	if should_draw:
+		# First draw the new card
+		var new_card = await card_manager.draw_single_card_to_hand(false)  # false = opponent card
+		
+		if is_instance_valid(new_card) and new_card.has_method("set_locked"):
+			new_card.set_locked(true)
+		
+		await get_tree().create_timer(0.3).timeout
+		
+		# Apply disintegration to the peek card before discarding
+		if is_instance_valid(card_node) and card_node.has_method("apply_disintegration"):
+			var drop_zone = get_node_or_null("/root/main/Parallax/DropZone")
+			if drop_zone and "disintegration_shader" in drop_zone and drop_zone.disintegration_shader:
+				card_node.apply_disintegration(
+					drop_zone.disintegration_shader,
+					0.0,
+					1.0,
+					1.5,
+					Tween.EASE_IN,
+					Tween.TRANS_SINE
+				)
+				# Wait for disintegration to complete
+				await get_tree().create_timer(1.5).timeout
+		
+		# THEN discard the peek card to the discard pile
+		var main_node = get_node_or_null("/root/main")
+		if main_node and main_node.has_method("add_to_discard_pile") and is_instance_valid(card_node):
+			main_node.add_to_discard_pile(card_node)
+		
+		await get_tree().create_timer(0.1).timeout
+		_consume_action_for_player(false)
+		
+		await get_tree().create_timer(0.2).timeout
+		_relock_dropzone_cards()
+	else:
+		# Keep the peek card, return it to hand
+		await _return_peek_card_to_hand(card_node)
+		_consume_action_for_player(false)

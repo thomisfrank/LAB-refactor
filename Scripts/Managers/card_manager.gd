@@ -60,6 +60,7 @@ func _initialize_deck():
 			push_warning("[CardManager] Deck composition is empty after loading from CardDataLoader!")
 		else:
 			# Debug/info log: deck loaded successfully
+			print("[CardManager] Deck composition loaded: %d cards" % deck.size())
 			deck.shuffle()
 	else:
 		push_error("[CardManager] CardDataLoader node not found - deck will be empty")
@@ -123,6 +124,11 @@ func draw_cards(number: int, start_pos: Vector2, _hand_center_pos: Vector2, face
 	# Cache Deck node for spawn position and z-index adjustments
 	var deck_node = get_node_or_null("/root/main/Parallax/Deck")
 
+	# Play draw sound at the start
+	var audio_manager = get_node_or_null("/root/main/Managers/AudioManager")
+	if audio_manager and audio_manager.has_method("play_card_draw"):
+		audio_manager.play_card_draw()
+	
 	# Sequential draw: instantiate one card, animate from deck to slot, then reparent to slot
 	for i in range(number):
 		var card_instance: Node2D = card_scene.instantiate()
@@ -214,7 +220,6 @@ func draw_cards(number: int, start_pos: Vector2, _hand_center_pos: Vector2, face
 
 		# Set home position to slot position (use global coordinates)
 		if is_instance_valid(card_instance) and card_instance.has_method("set_home_position"):
-			print("[CardManager] Initial deal: Setting home for %s, slot_rot=%s degrees" % [card_instance.name, rad_to_deg(slot_global_rot)])
 			card_instance.set_home_position(slot_global_pos, slot_global_rot)
 
 		# Flip to reveal (only player cards)
@@ -364,6 +369,7 @@ func discard_all_hands() -> void:
 	if all_cards.size() == 0:
 		return
 
+	print("[CardManager] discard_all_hands: Starting discard of %d cards" % all_cards.size())
 
 	var main_node = get_node_or_null("/root/main")
 	var discard_node = null
@@ -397,6 +403,7 @@ func discard_all_hands() -> void:
 	# Callback for when a card completes its discard animation
 	var on_card_complete = func():
 		cards_completed[0] += 1
+		print("[CardManager] Card discard complete: %d/%d" % [cards_completed[0], cards_to_complete])
 
 	# Process each card
 	for card in all_cards:
@@ -450,7 +457,8 @@ func discard_all_hands() -> void:
 	
 	if wait_time >= max_wait:
 		push_warning("card_manager: discard_all_hands timed out waiting for cards to complete")
-	
+	else:
+		print("[CardManager] All %d cards discarded successfully in %.2f seconds" % [cards_completed[0], wait_time])
 	
 	# Small delay to let final animations settle
 	await get_tree().create_timer(0.1).timeout
@@ -463,6 +471,7 @@ func discard_all_hands() -> void:
 func relayout_hand(is_player: bool = true) -> void:
 	"""Reposition existing cards to fill gaps using HandSlots."""
 	
+	print("[CardManager] relayout_hand called for %s" % ("player" if is_player else "opponent"))
 
 	# Collect cards for the specified hand
 	var cards: Array = []
@@ -472,17 +481,21 @@ func relayout_hand(is_player: bool = true) -> void:
 	var hand_slots_root = get_node_or_null(hand_slots_path)
 	
 	if hand_slots_root:
+		print("[CardManager] Found hand_slots_root, collecting cards from slots...")
 		# Collect all cards from slots
 		for slot in hand_slots_root.get_children():
 			for card in slot.get_children():
 				if card and card.has_method("set_home_position"):
 					# Skip cards that are in the play area (drop zone) - they're being played/discarded
 					if "is_in_play_area" in card and card.is_in_play_area:
+						print("[CardManager]   Skipping card in play area: %s" % card.name)
 						continue
 					cards.append(card)
+					print("[CardManager]   Found card in slot: %s" % card.name)
 	
 	# Also check CardManager's direct children (cards from draw_cards may still be here)
 	# But ONLY add them if they're not already in the cards array (not in a slot)
+	print("[CardManager] Checking CardManager children for cards...")
 	for child in get_children():
 		if child and child.has_method("set_home_position"):
 			# Skip if already in cards array (already in a slot)
@@ -496,9 +509,12 @@ func relayout_hand(is_player: bool = true) -> void:
 					continue
 			# Skip cards that are in the play area (drop zone) - they're being discarded
 			if "is_in_play_area" in child and child.is_in_play_area:
+				print("[CardManager]   Skipping card in play area: %s" % child.name)
 				continue
 			cards.append(child)
+			print("[CardManager]   Found card in CardManager: %s" % child.name)
 	
+	print("[CardManager] Total cards found to relayout: %d" % cards.size())
 
 	# Sort by card_index if available to preserve intended order
 	cards.sort_custom(Callable(self, "_sort_by_card_index"))
@@ -506,8 +522,10 @@ func relayout_hand(is_player: bool = true) -> void:
 	# Get slot positions for the appropriate hand
 	var slots = _get_hand_slot_positions(is_player)
 	if slots.size() == 0:
+		print("[CardManager] ERROR: No hand slots found!")
 		return
 	
+	print("[CardManager] Available slots: %d" % slots.size())
 
 	# Reparent cards to fill slots sequentially and update their positions
 	var slot_index = 0
@@ -623,7 +641,6 @@ func draw_single_card_to_hand(is_player: bool = true) -> Node:
 
 	card_instance.global_position = spawn_pos
 	card_instance.rotation = 0.0 # Start rotation at 0
-	print("[CardManager] Card spawned from deck: %s, initial rotation: %s degrees" % [card_instance.name, rad_to_deg(card_instance.rotation)])
 	if card_instance is CanvasItem:
 		card_instance.z_index = 100
 
@@ -637,7 +654,6 @@ func draw_single_card_to_hand(is_player: bool = true) -> Node:
 	var t = create_tween()
 	t.set_parallel(true)
 	t.tween_property(card_instance, "global_position", slot_global_pos, draw_base_duration).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	print("[CardManager] Tweening card to slot: rotation from %s to %s degrees" % [rad_to_deg(card_instance.rotation), rad_to_deg(slot_global_rot)])
 	t.tween_property(card_instance, "rotation", slot_global_rot, draw_base_duration)
 	# Tween scale to final size
 	t.tween_property(card_instance, "scale", card_size / base_card_size, draw_base_duration * 0.8).set_ease(Tween.EASE_OUT)
@@ -656,7 +672,6 @@ func draw_single_card_to_hand(is_player: bool = true) -> Node:
 		target_slot.add_child(card_instance)
 		card_instance.position = Vector2.ZERO
 		card_instance.rotation = 0.0  # Reset rotation to be relative to parent slot
-		print("[CardManager] Card moving deck->hand: %s, rotation set to: %s degrees" % [card_instance.name, rad_to_deg(card_instance.rotation)])
 
 		if card_instance.has_method("set_home_position"):
 			# Card is parented to slot, so home rotation should be 0 (local to slot)
@@ -679,7 +694,9 @@ func draw_single_card_to_hand(is_player: bool = true) -> Node:
 		await get_tree().create_timer(0.15).timeout
 
 		# Relayout the hand after drawing to fill gaps and position the new card
+		print("[CardManager] draw_single_card_to_hand: Calling relayout_hand for %s" % ("player" if is_player else "opponent"))
 		await relayout_hand(is_player)
+		print("[CardManager] draw_single_card_to_hand: Relayout complete")
 
 		return card_instance
 	

@@ -26,30 +26,63 @@ func _resolve_card_manager() -> void:
 
 
 func on_ai_turn() -> void:
-	_resolve_card_manager()
-	if not card_manager:
-		push_error("AIManager: CardManager not found; cannot move card.")
+	# Add a thinking delay so the player can see what's happening
+	await get_tree().create_timer(1.0).timeout
+	
+	# Get all opponent cards from the opponent_hand group
+	var opponent_cards = get_tree().get_nodes_in_group("opponent_hand")
+	
+	print("[AI] Found ", opponent_cards.size(), " opponent cards")
+	
+	# If no cards in hand, just pass
+	if opponent_cards.is_empty():
+		print("[AI] No cards in hand, passing")
+		_ai_pass()
 		return
+	
+	# Randomly decide: play a card (70% chance) or pass (30% chance)
+	var random_choice = randf()
+	print("[AI] Random choice: ", random_choice)
+	if random_choice < 0.7:
+		# Play a random card from hand
+		var card_node = opponent_cards[randi() % opponent_cards.size()]
+		print("[AI] Playing card")
+		_ai_play_card(card_node)
+	else:
+		# Pass turn
+		print("[AI] Choosing to pass")
+		_ai_pass()
 
-	var card_node = null
-	for c in card_manager.get_children():
-		if c and "is_player_card" in c and not c.is_player_card:
-			card_node = c
-			break
-	if not card_node:
-		return
 
+func _ai_play_card(card_node: Node) -> void:
+	"""AI plays the specified card with animation."""
 	var main_node = get_node_or_null("/root/main")
 	if main_node and card_node.get_parent() != main_node:
 		card_node.reparent(main_node)
 
-	var vp_rect = get_viewport().get_visible_rect()
-	var target_position = vp_rect.position + vp_rect.size * 0.5 + move_offset
+	# Find the drop zone to get the target position
+	var drop_zone = null
+	for zone in get_tree().get_nodes_in_group("drop_zones"):
+		drop_zone = zone
+		break
+	
+	if not drop_zone:
+		push_error("AIManager: No drop zone found. Cannot play card.")
+		return
+	
+	var play_area_marker = drop_zone.get_node_or_null("PlayAreaCardSlot/PlayAreaCardSlotMarker")
+	if not play_area_marker:
+		push_error("AIManager: PlayAreaCardSlotMarker not found. Cannot play card.")
+		return
+	
+	# Override target position to exact coordinates
+	var target_position = Vector2(1325, 650)
+	print("[AI] Using hardcoded position: ", target_position)
 
 	# PHASE 1: Lift and Rotate
 	var start_position = card_node.global_position
 	var lifted_position = start_position + Vector2(0, -lift_height)
-	var target_rotation = 0  # Change if you want a specific angle, e.g. deg_to_rad(15)
+	var target_rotation = deg_to_rad(180)  # Rotate 180 degrees to face right-side up
 
 	var t = create_tween()
 
@@ -145,3 +178,20 @@ func _trigger_drop_zone(card_node: Node2D) -> void:
 	
 	# If no drop zone found, log a warning
 	push_warning("AIManager: No drop zone found to trigger card drop")
+
+
+func _ai_pass() -> void:
+	"""AI decides to pass their turn."""
+	# Add a small delay so it doesn't feel instant
+	await get_tree().create_timer(0.5).timeout
+	
+	var tm = null
+	if game_manager and game_manager.has_method("get_manager"):
+		tm = game_manager.get_manager("TurnManager")
+	if not tm:
+		tm = get_node_or_null("/root/main/Managers/TurnManager")
+	
+	if tm and tm.has_method("pass_current_player"):
+		tm.pass_current_player()
+	else:
+		push_error("AIManager: Could not find TurnManager to pass turn")

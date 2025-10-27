@@ -210,6 +210,11 @@ func _process(delta: float) -> void:
 	handle_description_hover(delta)
 
 func flip_card():
+	# Play card flip sound
+	var audio_manager = get_node_or_null("/root/main/Managers/AudioManager")
+	if audio_manager and audio_manager.has_method("play_card_tap"):
+		audio_manager.play_card_tap()
+	
 	var tween = create_tween().set_ease(flip_ease).set_trans(flip_trans)
 	
 	var visible_side = card_back if card_back.is_visible() else card_face
@@ -235,6 +240,11 @@ func flip_card():
 func _on_display_mouse_entered() -> void:
 	is_mouse_over = true
 	description_timer = 0.0  # Reset timer when hover starts
+	
+	# Play card touch sound on hover
+	var audio_manager = get_node_or_null("/root/main/Managers/AudioManager")
+	if audio_manager and audio_manager.has_method("play_card_touch") and is_player_card:
+		audio_manager.play_card_touch()
 	
 	# Handle swap selection hover
 	if is_selectable_for_swap:
@@ -368,8 +378,8 @@ func _check_drop_zones() -> void:
 			if zone.contains_global_position(global_position):
 				# Trigger the drop
 				if zone.has_method("on_card_dropped"):
-					# We're already inside the zone, don't let it snap our position.
-					zone.on_card_dropped(self, false, true)
+					# Snap to the marker position
+					zone.on_card_dropped(self, true, true)
 				return
 	
 	# No valid drop zone found - snap back to original position with bounce
